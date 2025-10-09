@@ -1,13 +1,35 @@
-body {
-  margin: 0;
-  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
-    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
-    sans-serif;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  color-scheme: light;
 }
 
-code {
-  font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
-    monospace;
+body {
+  @apply font-body bg-slate-50 text-slate-800 antialiased;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  @apply font-display;
+}
+
+a {
+  @apply text-gov-accent hover:text-gov-primary transition-colors;
+}
+
+.glass-panel {
+  @apply bg-white/70 backdrop-blur-xl shadow-ambient rounded-3xl border border-white/50;
+}
+
+.gov-gradient {
+  background: linear-gradient(135deg, rgba(31, 79, 139, 0.95), rgba(44, 130, 212, 0.85));
+}
+
+.user-gradient {
+  background: linear-gradient(135deg, rgba(15, 157, 88, 0.95), rgba(52, 168, 83, 0.85));
+}
+
+.hero-gradient {
+  background: radial-gradient(circle at top left, rgba(52, 168, 83, 0.25), rgba(31, 79, 139, 0));
 }
