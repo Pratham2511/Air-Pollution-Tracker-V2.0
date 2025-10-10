@@ -4,32 +4,94 @@
 
 :root {
   color-scheme: light;
+  --surface-base: #f8fafc;
+  --surface-elevated: #ffffff;
+  --surface-muted: #ebf2ff;
+  --ink-primary: #0f172a;
+  --ink-secondary: #475569;
+  --focus-ring: 0 0 0 4px rgba(44, 130, 212, 0.35);
+  --transition-snappy: cubic-bezier(0.22, 1, 0.36, 1);
 }
 
-body {
-  @apply font-body bg-slate-50 text-slate-800 antialiased;
+@layer base {
+  body {
+    @apply font-body bg-[radial-gradient(circle_at_top,_rgba(15,157,88,0.05),_transparent_55%)] bg-slate-50 text-slate-800 antialiased;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-display;
+  }
+
+  a {
+    @apply text-gov-accent transition-colors duration-250 ease-snappy hover:text-gov-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-gov-accent/40 focus-visible:ring-offset-2 focus-visible:ring-offset-white;
+  }
+
+  button,
+  [type='button'],
+  [type='submit'] {
+    @apply focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-user-primary/40 focus-visible:ring-offset-2 focus-visible:ring-offset-surface-elevated;
+  }
+
+  .skip-link {
+    position: absolute;
+    left: 50%;
+    top: 1rem;
+    z-index: 1000;
+    transform: translate(-50%, -200%);
+    background: #0f172a;
+    color: #f8fafc;
+    padding: 0.75rem 1.5rem;
+    border-radius: 9999px;
+    font-weight: 600;
+    box-shadow: 0 12px 28px -12px rgba(15, 23, 42, 0.45);
+    transition: transform 0.2s var(--transition-snappy);
+  }
+
+  .skip-link:focus-visible {
+    transform: translate(-50%, 0);
+  }
+
+  ::selection {
+    background: rgba(44, 130, 212, 0.18);
+  }
 }
 
-h1, h2, h3, h4, h5, h6 {
-  @apply font-display;
+@layer components {
+  .glass-panel {
+    @apply bg-white/70 backdrop-blur-xl shadow-ambient rounded-4xl border border-white/50 transition-shadow duration-250 ease-snappy hover:shadow-elevated;
+  }
+
+  .glass-panel.is-static {
+    @apply hover:shadow-ambient;
+  }
+
+  .gov-gradient {
+    background: linear-gradient(135deg, rgba(31, 79, 139, 0.95), rgba(44, 130, 212, 0.85));
+  }
+
+  .user-gradient {
+    background: linear-gradient(135deg, rgba(15, 157, 88, 0.95), rgba(52, 168, 83, 0.85));
+  }
+
+  .hero-gradient {
+    background: radial-gradient(circle at top left, rgba(52, 168, 83, 0.3), rgba(31, 79, 139, 0));
+  }
+
+  .focus-ring {
+    box-shadow: var(--focus-ring);
+  }
 }
 
-a {
-  @apply text-gov-accent hover:text-gov-primary transition-colors;
-}
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
 
-.glass-panel {
-  @apply bg-white/70 backdrop-blur-xl shadow-ambient rounded-3xl border border-white/50;
-}
+  .backdrop-mesh {
+    @apply bg-mesh-soft;
+  }
 
-.gov-gradient {
-  background: linear-gradient(135deg, rgba(31, 79, 139, 0.95), rgba(44, 130, 212, 0.85));
-}
-
-.user-gradient {
-  background: linear-gradient(135deg, rgba(15, 157, 88, 0.95), rgba(52, 168, 83, 0.85));
-}
-
-.hero-gradient {
-  background: radial-gradient(circle at top left, rgba(52, 168, 83, 0.25), rgba(31, 79, 139, 0));
+  .motion-safe\:fade-slide-up {
+    @apply motion-safe:animate-fadeSlideUp;
+  }
 }

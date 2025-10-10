@@ -2,28 +2,74 @@ import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { signUpGovernment, requestOtp, verifyOtp, signInWithPassword } from '../../services/authService';
 import { useOtpTimer } from '../../hooks/useOtpTimer';
+import { isGovernmentEmailAllowed } from '../../utils/validation';
+import { GovernmentOnboardingSteps } from './GovernmentOnboardingSteps';
 
 const initialForm = {
   officialName: '',
   department: '',
   officialEmail: '',
   region: '',
+  roleTitle: '',
   password: '',
   confirmPassword: '',
 };
 
+const initialSignInForm = {
+  email: '',
+  password: '',
+};
+
+const GOVERNMENT_ROLES = [
+  { value: 'environment-analyst', label: 'Environment Analyst' },
+  { value: 'district-commissioner', label: 'District Commissioner' },
+  { value: 'emergency-ops', label: 'Emergency Ops Lead' },
+  { value: 'policy-planner', label: 'Policy Planner' },
+  { value: 'data-strategy', label: 'Data Strategy Chief' },
+];
+
 export const GovernmentAuthForm = () => {
   const [form, setForm] = useState(initialForm);
   const [errors, setErrors] = useState({});
+  const [signInForm, setSignInForm] = useState(initialSignInForm);
+  const [signInErrors, setSignInErrors] = useState({});
   const [step, setStep] = useState('register');
   const [otp, setOtp] = useState('');
   const [status, setStatus] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
-  const timer = useOtpTimer();
+  const [createdUserId, setCreatedUserId] = useState(null);
+  const timer = useOtpTimer('government-otp-window');
+
+  const resetUiState = (nextStep) => {
+    setStatus(null);
+    setIsLoading(false);
+    setErrors({});
+    setSignInErrors({});
+    setOtp('');
+    if (nextStep !== 'verify') {
+      timer.reset();
+    }
+    if (nextStep === 'register') {
+      setCreatedUserId(null);
+    }
+  };
 
   const handleChange = (event) => {
     const { name, value } = event.target;
     setForm((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleSignInChange = (event) => {
+    const { name, value } = event.target;
+    setSignInForm((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const navigateTo = (nextStep) => {
+    resetUiState(nextStep);
+    if (nextStep === 'signin') {
+      setSignInForm((prev) => ({ ...prev, email: form.officialEmail || prev.email }));
+    }
+    setStep(nextStep);
   };
 
   const handleSubmit = async (event) => {
@@ -38,15 +84,28 @@ export const GovernmentAuthForm = () => {
       return;
     }
 
+    const userId = result?.data?.user?.id ?? null;
+    setCreatedUserId(userId);
     setErrors({});
     setStatus('Next: verify your official email via OTP. Government accounts unlock after verification.');
     setStep('verify');
 
-    const { error } = await requestOtp(form.officialEmail);
-    if (error) {
-      setStatus(error);
-    } else {
-      timer.start();
+    if (isGovernmentEmailAllowed(form.officialEmail)) {
+      const { error } = await requestOtp(form.officialEmail, {
+        channel: 'government',
+        redirectTo: `${window.location.origin}/gov`,
+        userId,
+        metadata: {
+          department: form.department,
+          region: form.region,
+          role: form.roleTitle,
+        },
+      });
+      if (error) {
+        setStatus(error);
+      } else {
+        timer.start();
+      }
     }
 
     setIsLoading(false);
@@ -55,18 +114,62 @@ export const GovernmentAuthForm = () => {
   const handleOtpSubmit = async (event) => {
     event.preventDefault();
     setIsLoading(true);
-    const { error } = await verifyOtp({ email: form.officialEmail, token: otp, type: 'email' });
+    const { error } = await verifyOtp({
+      email: form.officialEmail,
+      token: otp,
+      type: 'email',
+      channel: 'government',
+    });
     if (error) {
       setStatus(error);
     } else {
       setStatus('OTP verified! Redirecting to the government command center…');
+      timer.reset();
       await signInWithPassword({ email: form.officialEmail, password: form.password, redirectTo: '/gov' });
+    }
+    setIsLoading(false);
+  };
+
+  const handleSignInSubmit = async (event) => {
+    event.preventDefault();
+    const fieldErrors = {};
+    if (!signInForm.email) {
+      fieldErrors.email = 'Official email is required.';
+    } else if (!isGovernmentEmailAllowed(signInForm.email)) {
+      fieldErrors.email = 'Government accounts require verified .gov domains.';
+    }
+    if (!signInForm.password) {
+      fieldErrors.password = 'Password is required.';
+    }
+
+    if (Object.keys(fieldErrors).length > 0) {
+      setSignInErrors(fieldErrors);
+      return;
+    }
+
+    setIsLoading(true);
+    setStatus('Authenticating credentials…');
+    setSignInErrors({});
+
+    const { error } = await signInWithPassword({
+      email: signInForm.email,
+      password: signInForm.password,
+      redirectTo: '/gov',
+    });
+
+    if (error) {
+      setSignInErrors({ root: error });
+      setStatus(null);
+    } else {
+      setStatus('Access granted. Loading the command center…');
     }
     setIsLoading(false);
   };
 
   return (
     <motion.div layout className="space-y-4">
+      <GovernmentOnboardingSteps activeStep={step} />
+
       {status && (
         <div className="rounded-xl border border-gov-accent/20 bg-gov-accent/10 p-4 text-sm text-gov-primary">
           {status}
@@ -142,6 +245,30 @@ export const GovernmentAuthForm = () => {
             </div>
           </div>
 
+          <div>
+            <label className="text-sm font-medium text-slate-600" htmlFor="roleTitle">
+              Role / Clearance Level
+            </label>
+            <select
+              id="roleTitle"
+              name="roleTitle"
+              value={form.roleTitle}
+              onChange={handleChange}
+              className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3"
+              required
+            >
+              <option value="" disabled>
+                Select your mission scope
+              </option>
+              {GOVERNMENT_ROLES.map((role) => (
+                <option key={role.value} value={role.value}>
+                  {role.label}
+                </option>
+              ))}
+            </select>
+            {errors.roleTitle && <p className="mt-1 text-xs text-red-500">{errors.roleTitle}</p>}
+          </div>
+
           <div className="grid gap-4 sm:grid-cols-2">
             <div>
               <label className="text-sm font-medium text-slate-600" htmlFor="password">
@@ -188,11 +315,41 @@ export const GovernmentAuthForm = () => {
           >
             {isLoading ? 'Submitting…' : 'Register Government Account'}
           </button>
+          <p className="text-center text-xs text-slate-500">
+            Already cleared?{' '}
+            <button
+              type="button"
+              onClick={() => navigateTo('signin')}
+              className="font-semibold text-gov-primary hover:underline"
+            >
+              Access command center
+            </button>
+          </p>
         </form>
       )}
 
       {step === 'verify' && (
         <form className="space-y-4" onSubmit={handleOtpSubmit}>
+          <div className="grid gap-3 sm:grid-cols-2">
+            {[{
+              label: 'Official',
+              value: form.officialName || '—',
+            }, {
+              label: 'Department',
+              value: form.department || '—',
+            }, {
+              label: 'Region',
+              value: form.region || '—',
+            }, {
+              label: 'Role',
+              value: GOVERNMENT_ROLES.find((role) => role.value === form.roleTitle)?.label ?? '—',
+            }].map((field) => (
+              <div key={field.label} className="rounded-xl border border-slate-200 bg-white px-4 py-3">
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">{field.label}</p>
+                <p className="mt-1 text-sm font-medium text-slate-700">{field.value}</p>
+              </div>
+            ))}
+          </div>
           <div className="bg-slate-50 rounded-xl p-4 text-sm text-slate-600">
             Verify the OTP sent to <span className="font-semibold">{form.officialEmail}</span>. Access is restricted until verification completes.
             {timer.isRunning && (
@@ -221,7 +378,16 @@ export const GovernmentAuthForm = () => {
               disabled={timer.isRunning}
               onClick={async () => {
                 setStatus('Requesting new OTP…');
-                const { error } = await requestOtp(form.officialEmail);
+                const { error } = await requestOtp(form.officialEmail, {
+                  channel: 'government',
+                  redirectTo: `${window.location.origin}/gov`,
+                  userId: createdUserId,
+                  metadata: {
+                    department: form.department,
+                    region: form.region,
+                    role: form.roleTitle,
+                  },
+                });
                 if (error) {
                   setStatus(error);
                 } else {
@@ -234,6 +400,78 @@ export const GovernmentAuthForm = () => {
               Resend OTP
             </button>
           </div>
+          <p className="text-center text-xs text-slate-500">
+            Need to revise details?{' '}
+            <button
+              type="button"
+              onClick={() => {
+                setForm(initialForm);
+                navigateTo('register');
+                setCreatedUserId(null);
+              }}
+              className="font-semibold text-gov-primary hover:underline"
+            >
+              Return to registration
+            </button>
+          </p>
+        </form>
+      )}
+
+      {step === 'signin' && (
+        <form className="space-y-4" onSubmit={handleSignInSubmit} noValidate>
+          <div>
+            <label className="text-sm font-medium text-slate-600" htmlFor="govSigninEmail">
+              Government Email
+            </label>
+            <input
+              id="govSigninEmail"
+              type="email"
+              name="email"
+              value={signInForm.email}
+              onChange={handleSignInChange}
+              placeholder="name@agency.gov.in"
+              className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3"
+              required
+            />
+            {signInErrors.email && <p className="mt-1 text-xs text-red-500">{signInErrors.email}</p>}
+          </div>
+          <div>
+            <label className="text-sm font-medium text-slate-600" htmlFor="govSigninPassword">
+              Password
+            </label>
+            <input
+              id="govSigninPassword"
+              type="password"
+              name="password"
+              value={signInForm.password}
+              onChange={handleSignInChange}
+              placeholder="Secure credentials"
+              className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3"
+              required
+            />
+            {signInErrors.password && <p className="mt-1 text-xs text-red-500">{signInErrors.password}</p>}
+          </div>
+          {signInErrors.root && <p className="text-xs text-red-500">{signInErrors.root}</p>}
+          <button
+            type="submit"
+            disabled={isLoading}
+            className="w-full rounded-xl bg-gov-primary text-white py-3 font-semibold hover:bg-gov-primary/90 transition disabled:cursor-not-allowed disabled:opacity-70"
+          >
+            {isLoading ? 'Authorizing…' : 'Enter Command Center'}
+          </button>
+          <p className="text-center text-xs text-slate-500">
+            Need new credentials?{' '}
+            <button
+              type="button"
+              onClick={() => {
+                setForm(initialForm);
+                navigateTo('register');
+              }}
+              className="font-semibold text-gov-primary hover:underline"
+            >
+              Launch onboarding
+            </button>
+          </p>
         </form>
       )}
     </motion.div>

@@ -1,6 +1,6 @@
 # Air Quality Tracker • Engineering Roadmap
 
-_Last updated: 2025-10-09_
+_Last updated: 2025-10-10_
 
 This document refines the master prompt into actionable epics, milestones, and technical contracts. Each phase includes primary deliverables, owner checklists, data contracts, and QA gates.
 
@@ -119,6 +119,12 @@ create table public.otp_requests (
 - Integration test mocking OpenAQ responses.
 - Performance check: 60fps interactions on mid-tier laptop (manual).
 
+### Progress (2025-10-10)
+- ✅ Dashboard map renders 200+ catalog cities with tracked-city highlighting and Mapbox fallback.
+- ✅ Tracked city preferences persist via Supabase `dashboard_preferences` with local cache resilience.
+- ✅ Insights tab surfaces live metrics, OpenAQ snapshot hydration, and direct navigation to analysis flows.
+- ✅ Supabase schema scripted in `supabase/schema/phase3-dashboard.sql` with RLS coverage for dashboard tables.
+
 ---
 
 ## Phase 4 · Government Portal
@@ -219,6 +225,11 @@ Components:
 - Unit tests for data transformers.
 - Manual API load test (throttled) to ensure rate limits respected.
 
+### Progress (2025-10-10)
+- ✅ Client-side OpenAQ integration delivers live pollutant snapshots with deterministic caching fallbacks.
+- ✅ Geolocation service unifies GPS/IP lookup for map centering and future modules.
+- ✅ Supabase ingestion stubs, local cache hook, and scheduler runbook published (`docs/openaq-scheduler.md`).
+
 ---
 
 ## Phase 7 · UI/UX Polish
@@ -228,6 +239,12 @@ Components:
 - Add micro-interactions (Framer Motion) on key UI elements.
 - Implement toast notifications, loading skeletons, empty states.
 - Accessibility sweep (keyboard nav, focus rings, ARIA labels).
+
+### Progress (2025-10-10)
+- ✅ Expanded Tailwind design tokens, glassmorphism utilities, and motion easing presets.
+- ✅ Rolled out Framer Motion interactions across hero, stats, and dashboard tabs with animated active indicators.
+- ✅ Added reusable Skeleton loader system and toast notifications with context-aware messaging.
+- ✅ Completed accessibility sweep including skip-link navigation, ARIA live regions, and semantic main landmarks.
 
 ### QA Gate
 - Lighthouse audit ≥ 90 (Performance, Accessibility, Best Practices, SEO).

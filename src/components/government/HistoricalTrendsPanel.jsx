@@ -1,97 +1,176 @@
-const TREND_WINDOWS = [
-  {
-    label: "24 Hours",
-    delta: "+4.2%",
-    status: "Warning",
-    copy: "Regional smog event linked to thermal power output.",
-  },
-  {
-    label: "7 Days",
-    delta: "-2.1%",
-    status: "Improving",
-    copy: "Wind patterns dispersing particulate build-up across western corridor.",
-  },
-  {
-    label: "30 Days",
-    delta: "+1.7%",
-    status: "Stable",
-    copy: "Seasonal baselines aligning with historical averages.",
-  },
-];
+import PropTypes from 'prop-types';
+import {
+  CartesianGrid,
+  Line,
+  LineChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from 'recharts';
 
-export const HistoricalTrendsPanel = () => (
-  <section id="historical-trends" className="glass-panel p-8">
-    <div className="flex flex-wrap items-center justify-between gap-4">
-      <div>
-        <h2 className="text-2xl font-semibold text-gov-primary">Historical Trend Analysis</h2>
-        <p className="mt-1 text-sm text-slate-500">
-          Compare high-value windows to detect policy impacts and emerging hotspots over time.
-        </p>
-      </div>
-      <div className="inline-flex gap-2 rounded-full bg-gov-primary/10 px-4 py-2 text-xs font-semibold uppercase tracking-[0.2em] text-gov-primary">
-        Data Integrity · 98.7%
-      </div>
-    </div>
+const windowLabels = {
+  '24h': '24 Hours',
+  '7d': '7 Days',
+  '30d': '30 Days',
+};
 
-    <div className="mt-6 grid gap-4 md:grid-cols-3">
-      {TREND_WINDOWS.map((window) => (
-        <div key={window.label} className="rounded-3xl border border-slate-200/60 bg-white/70 p-6 shadow-sm">
-          <p className="text-xs font-semibold uppercase tracking-[0.3em] text-slate-500">{window.label}</p>
-          <p className="mt-4 text-3xl font-semibold text-gov-primary">{window.delta}</p>
-          <p className="mt-2 text-sm text-slate-500">{window.copy}</p>
-          <span className="mt-4 inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
-            <span className="h-2 w-2 rounded-full bg-gov-accent" />
-            {window.status}
-          </span>
+export const HistoricalTrendsPanel = ({
+  series,
+  highlights,
+  selectedWindow,
+  onWindowChange,
+  selectedCity,
+  onCityChange,
+  availableCities,
+  policyInsights,
+}) => {
+  const data = series?.[selectedWindow] ?? [];
+
+  return (
+    <section id="historical-trends" className="glass-panel p-8">
+      <div className="flex flex-wrap items-center justify-between gap-4">
+        <div>
+          <h2 className="text-2xl font-semibold text-gov-primary">Historical Trend Analysis</h2>
+          <p className="mt-1 text-sm text-slate-500">
+            Compare high-value windows to detect policy impacts and emerging hotspots over time.
+          </p>
         </div>
-      ))}
-    </div>
-
-    <div className="mt-8 grid gap-6 lg:grid-cols-[2fr_1fr]">
-      <div className="rounded-3xl border border-slate-200/60 bg-white/70 p-6">
-        <h3 className="text-lg font-semibold text-slate-700">AQI Trajectory (Delhi NCR)</h3>
-        <div className="mt-4 h-64 rounded-2xl bg-gradient-to-br from-gov-muted to-white/80">
-          <div className="flex h-full flex-col justify-between p-6 text-xs text-slate-500">
-            <div className="flex justify-between">
-              <span>24h</span>
-              <span>18h</span>
-              <span>12h</span>
-              <span>6h</span>
-              <span>Now</span>
-            </div>
-            <div className="flex flex-1 items-center justify-center">
-              <span className="rounded-full bg-white/70 px-4 py-2 text-sm font-semibold text-gov-primary shadow">
-                Forecast overlay ready
-              </span>
-            </div>
-            <div className="flex justify-between">
-              <span>AQI 80</span>
-              <span>120</span>
-              <span>160</span>
-              <span>220</span>
-              <span>260</span>
-            </div>
+        <div className="flex flex-wrap items-center gap-3 text-xs font-semibold text-slate-500">
+          <select
+            value={selectedCity}
+            onChange={(event) => onCityChange?.(event.target.value)}
+            className="h-10 rounded-full border border-slate-200 bg-white px-4 text-sm shadow-sm focus:border-gov-primary focus:outline-none"
+          >
+            {availableCities.map((city) => (
+              <option key={city.id} value={city.id}>
+                {city.name}
+              </option>
+            ))}
+          </select>
+          <div className="inline-flex gap-2 rounded-full bg-gov-primary/10 px-4 py-2 text-xs uppercase tracking-[0.2em] text-gov-primary">
+            Data Integrity · 98.7%
           </div>
         </div>
       </div>
 
-      <div className="rounded-3xl border border-slate-200/60 bg-white/70 p-6">
-        <h3 className="text-lg font-semibold text-slate-700">Policy Impact Watchlist</h3>
-        <ul className="mt-4 space-y-4 text-sm text-slate-600">
-          <li className="rounded-2xl bg-slate-100/60 p-4">
-            <p className="font-semibold text-slate-700">Odd-Even Pilot · Delhi</p>
-            <p className="mt-1 text-xs text-slate-500">Net gain of 6.4% improvement in PM2.5 within 7 days.</p>
-          </li>
-          <li className="rounded-2xl bg-slate-100/60 p-4">
-            <p className="font-semibold text-slate-700">Industrial curfew · Raipur</p>
-            <p className="mt-1 text-xs text-slate-500">Immediate drop of 12% in SO₂ following enforcement.</p>
-          </li>
-          <li className="rounded-2xl bg-slate-100/60 p-4">
-            <p className="font-semibold text-slate-700">Port emissions cap · Mumbai</p>
-            <p className="mt-1 text-xs text-slate-500">Monitoring for rebound effect. Awaiting second-week data.</p>
-          </li>
-        </ul>
+      <div className="mt-6 flex flex-wrap gap-4">
+        {Object.keys(windowLabels).map((window) => (
+          <button
+            key={window}
+            onClick={() => onWindowChange?.(window)}
+            type="button"
+            className={`rounded-full border px-4 py-2 text-xs font-semibold uppercase tracking-[0.25em] transition ${
+              selectedWindow === window
+                ? 'border-gov-primary bg-gov-primary text-white'
+                : 'border-slate-200 bg-white text-slate-600 hover:border-gov-primary hover:text-gov-primary'
+            }`}
+          >
+            {windowLabels[window]}
+          </button>
+        ))}
       </div>
-    </div>
-  </section>
-);
+
+      <div className="mt-6 grid gap-4 md:grid-cols-3">
+        {highlights.map((card) => (
+          <div key={card.id} className="rounded-3xl border border-slate-200/60 bg-white/70 p-6 shadow-sm">
+            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-slate-500">{card.label}</p>
+            <p className="mt-4 text-3xl font-semibold text-gov-primary">{card.value}</p>
+            <p className="mt-2 text-sm text-slate-500">{card.meta}</p>
+            {card.status && (
+              <span className="mt-4 inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-600">
+                <span className="h-2 w-2 rounded-full bg-gov-accent" />
+                {card.status}
+              </span>
+            )}
+          </div>
+        ))}
+      </div>
+
+      <div className="mt-8 grid gap-6 lg:grid-cols-[2fr_1fr]">
+        <div className="rounded-3xl border border-slate-200/60 bg-white/70 p-6">
+          <h3 className="text-lg font-semibold text-slate-700">AQI Trajectory</h3>
+          <div className="mt-4 h-64">
+            <ResponsiveContainer>
+              <LineChart data={data} margin={{ top: 10, right: 16, bottom: 0, left: 0 }}>
+                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                <XAxis dataKey="label" stroke="#64748b" fontSize={12} tickLine={false} />
+                <YAxis stroke="#64748b" fontSize={12} tickLine={false} />
+                <Tooltip
+                  cursor={{ stroke: '#0f172a', strokeWidth: 0.5, strokeDasharray: '4 4' }}
+                  formatter={(value, name) => [value, name === 'aqi' ? 'AQI' : 'Forecast']}
+                  contentStyle={{ borderRadius: '12px', border: '1px solid #e2e8f0' }}
+                />
+                <Line
+                  type="monotone"
+                  dataKey="aqi"
+                  stroke="#022c22"
+                  strokeWidth={2.5}
+                  dot={false}
+                  name="AQI"
+                />
+                <Line type="monotone" dataKey="forecast" stroke="#f97316" strokeWidth={2} dot={false} name="Forecast" strokeDasharray="5 5" />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+
+        <div className="rounded-3xl border border-slate-200/60 bg-white/70 p-6">
+          <h3 className="text-lg font-semibold text-slate-700">Policy Impact Watchlist</h3>
+          <ul className="mt-4 space-y-4 text-sm text-slate-600">
+            {(policyInsights?.length ? policyInsights : [
+              { id: 'baseline', title: 'Monitoring in progress', description: 'Connect policy annotations to surface changes to populate this panel.' },
+            ]).map((item) => (
+              <li key={item.id ?? item.title} className="rounded-2xl bg-slate-100/60 p-4">
+                <p className="font-semibold text-slate-700">{item.title}</p>
+                <p className="mt-1 text-xs text-slate-500">{item.description}</p>
+              </li>
+            ))}
+          </ul>
+        </div>
+      </div>
+    </section>
+  );
+};
+
+HistoricalTrendsPanel.propTypes = {
+  series: PropTypes.objectOf(PropTypes.arrayOf(PropTypes.shape({
+    label: PropTypes.string,
+    aqi: PropTypes.number,
+    forecast: PropTypes.number,
+  }))).isRequired,
+  highlights: PropTypes.arrayOf(
+    PropTypes.shape({
+      id: PropTypes.string,
+      label: PropTypes.string,
+      value: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
+      meta: PropTypes.string,
+      status: PropTypes.string,
+    }),
+  ).isRequired,
+  selectedWindow: PropTypes.oneOf(['24h', '7d', '30d']).isRequired,
+  onWindowChange: PropTypes.func,
+  selectedCity: PropTypes.string,
+  onCityChange: PropTypes.func,
+  availableCities: PropTypes.arrayOf(
+    PropTypes.shape({
+      id: PropTypes.string,
+      name: PropTypes.string,
+    }),
+  ),
+  policyInsights: PropTypes.arrayOf(
+    PropTypes.shape({
+      id: PropTypes.string,
+      title: PropTypes.string,
+      description: PropTypes.string,
+    }),
+  ),
+};
+
+HistoricalTrendsPanel.defaultProps = {
+  onWindowChange: undefined,
+  selectedCity: null,
+  onCityChange: undefined,
+  availableCities: [],
+  policyInsights: undefined,
+};

@@ -1,16 +1,16 @@
 import PropTypes from 'prop-types';
 import { ResponsiveContainer, AreaChart, Area, CartesianGrid, XAxis, YAxis, Tooltip, BarChart, Bar } from 'recharts';
-import { StatCard } from '../common/StatCard';
+import { Skeleton, StatCard } from '../common';
 
 export const InsightsPanel = ({ summary, trendData, pollutantLeaders, isLoading }) => (
   <div className="space-y-8">
     {isLoading ? (
       <div className="grid gap-4 md:grid-cols-3">
         {Array.from({ length: 3 }).map((_, index) => (
-          <div key={index} className="glass-panel h-full animate-pulse p-6 sm:p-8">
-            <div className="h-4 w-24 rounded-full bg-slate-200" />
-            <div className="mt-4 h-8 w-32 rounded-full bg-slate-200" />
-            <div className="mt-6 h-20 rounded-2xl bg-slate-200" />
+          <div key={index} className="glass-panel is-static h-full p-6 sm:p-8 space-y-4">
+            <Skeleton className="h-4 w-24 border-none shadow-none" rounded="rounded-full" />
+            <Skeleton className="h-8 w-32 border-none shadow-none" rounded="rounded-2xl" />
+            <Skeleton className="h-20 border-none shadow-none" rounded="rounded-3xl" />
           </div>
         ))}
       </div>
@@ -37,7 +37,11 @@ export const InsightsPanel = ({ summary, trendData, pollutantLeaders, isLoading 
         <p className="text-sm text-slate-500">Rolling averages for your tracked locations.</p>
         <div className="h-64">
           {isLoading ? (
-            <div className="h-full w-full animate-pulse rounded-2xl bg-slate-200" />
+            <Skeleton className="h-full w-full border-none shadow-none" rounded="rounded-3xl" />
+          ) : trendData.length === 0 ? (
+            <div className="flex h-full items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-white/70 text-sm text-slate-500">
+              Add cities to generate trend analytics.
+            </div>
           ) : (
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={trendData} margin={{ top: 10, right: 20, bottom: 0, left: 0 }}>
@@ -65,7 +69,11 @@ export const InsightsPanel = ({ summary, trendData, pollutantLeaders, isLoading 
         <p className="text-sm text-slate-500">Dominant pollutant levels across tracked cities.</p>
         <div className="h-64">
           {isLoading ? (
-            <div className="h-full w-full animate-pulse rounded-2xl bg-slate-200" />
+            <Skeleton className="h-full w-full border-none shadow-none" rounded="rounded-3xl" />
+          ) : pollutantLeaders.length === 0 ? (
+            <div className="flex h-full items-center justify-center rounded-2xl border border-dashed border-slate-200 bg-white/70 text-sm text-slate-500">
+              No pollutant spikes detected yet.
+            </div>
           ) : (
             <ResponsiveContainer width="100%" height="100%">
               <BarChart data={pollutantLeaders} margin={{ top: 10, right: 20, bottom: 0, left: -30 }}>

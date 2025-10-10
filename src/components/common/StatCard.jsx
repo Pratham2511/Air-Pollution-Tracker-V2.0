@@ -19,7 +19,7 @@ export const StatCard = ({
 }) => (
   <motion.div
     whileHover={{ y: -6 }}
-    className="glass-panel p-6 sm:p-8 h-full flex flex-col gap-4"
+    className="glass-panel p-6 sm:p-8 h-full flex flex-col gap-4 motion-safe:fade-slide-up"
   >
     <div className="flex items-center justify-between gap-4">
       <div>

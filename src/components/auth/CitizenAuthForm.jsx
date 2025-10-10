@@ -11,18 +11,50 @@ const initialForm = {
   confirmPassword: '',
 };
 
+const initialSignInForm = {
+  email: '',
+  password: '',
+};
+
 export const CitizenAuthForm = () => {
   const [form, setForm] = useState(initialForm);
   const [errors, setErrors] = useState({});
+  const [signInForm, setSignInForm] = useState(initialSignInForm);
+  const [signInErrors, setSignInErrors] = useState({});
   const [step, setStep] = useState('register');
   const [otp, setOtp] = useState('');
   const [status, setStatus] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
-  const timer = useOtpTimer();
+  const [createdUserId, setCreatedUserId] = useState(null);
+  const timer = useOtpTimer('citizen-otp-window');
+
+  const resetUiState = (nextStep) => {
+    setStatus(null);
+    setIsLoading(false);
+    setErrors({});
+    setSignInErrors({});
+    setOtp('');
+    if (nextStep !== 'verify') {
+      timer.reset();
+    }
+    if (nextStep === 'register') {
+      setCreatedUserId(null);
+    }
+  };
 
   const handleChange = (event) => {
     const { name, value } = event.target;
     setForm((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const handleSignInChange = (event) => {
+    const { name, value } = event.target;
+    setSignInForm((prev) => ({ ...prev, [name]: value }));
+  };
+
+  const navigateTo = (nextStep) => {
+    resetUiState(nextStep);
+    setStep(nextStep);
   };
 
   const handleSubmit = async (event) => {
@@ -37,12 +69,18 @@ export const CitizenAuthForm = () => {
       return;
     }
 
+    const userId = result?.data?.user?.id ?? null;
+    setCreatedUserId(userId);
     setErrors({});
     setStatus('Account created. Verify with the OTP sent to your email.');
     setStep('verify');
 
     if (isCitizenEmailAllowed(form.email)) {
-      const { error } = await requestOtp(form.email);
+      const { error } = await requestOtp(form.email, {
+        channel: 'citizen',
+        redirectTo: `${window.location.origin}/dashboard`,
+        userId,
+      });
       if (error) {
         setStatus(error);
       } else {
@@ -56,12 +94,55 @@ export const CitizenAuthForm = () => {
   const handleOtpSubmit = async (event) => {
     event.preventDefault();
     setIsLoading(true);
-    const { error } = await verifyOtp({ email: form.email, token: otp, type: 'email' });
+    const { error } = await verifyOtp({
+      email: form.email,
+      token: otp,
+      type: 'email',
+      channel: 'citizen',
+    });
     if (error) {
       setStatus(error);
     } else {
       setStatus('OTP verified! Redirecting to your dashboard…');
+      timer.reset();
       await signInWithPassword({ email: form.email, password: form.password, redirectTo: '/dashboard' });
+    }
+    setIsLoading(false);
+  };
+
+  const handleSignInSubmit = async (event) => {
+    event.preventDefault();
+    const fieldErrors = {};
+    if (!signInForm.email) {
+      fieldErrors.email = 'Email is required.';
+    } else if (!isCitizenEmailAllowed(signInForm.email)) {
+      fieldErrors.email = 'Citizen accounts must use @gmail.com or @outlook.com addresses.';
+    }
+
+    if (!signInForm.password) {
+      fieldErrors.password = 'Password is required.';
+    }
+
+    if (Object.keys(fieldErrors).length > 0) {
+      setSignInErrors(fieldErrors);
+      return;
+    }
+
+    setIsLoading(true);
+    setStatus('Signing you in…');
+    setSignInErrors({});
+
+    const { error } = await signInWithPassword({
+      email: signInForm.email,
+      password: signInForm.password,
+      redirectTo: '/dashboard',
+    });
+
+    if (error) {
+      setSignInErrors({ root: error });
+      setStatus(null);
+    } else {
+      setStatus('Welcome back! Redirecting to your dashboard…');
     }
     setIsLoading(false);
   };
@@ -147,6 +228,16 @@ export const CitizenAuthForm = () => {
           >
             {isLoading ? 'Creating account…' : 'Create Account'}
           </button>
+          <p className="text-center text-xs text-slate-500">
+            Already verified?{' '}
+            <button
+              type="button"
+              onClick={() => navigateTo('signin')}
+              className="font-semibold text-user-primary hover:underline"
+            >
+              Sign in instead
+            </button>
+          </p>
         </form>
       )}
 
@@ -180,7 +271,11 @@ export const CitizenAuthForm = () => {
               disabled={timer.isRunning}
               onClick={async () => {
                 setStatus('Requesting another OTP…');
-                const { error } = await requestOtp(form.email);
+                const { error } = await requestOtp(form.email, {
+                  channel: 'citizen',
+                  redirectTo: `${window.location.origin}/dashboard`,
+                  userId: createdUserId,
+                });
                 if (error) {
                   setStatus(error);
                 } else {
@@ -193,6 +288,78 @@ export const CitizenAuthForm = () => {
               Resend OTP
             </button>
           </div>
+          <p className="text-center text-xs text-slate-500">
+            Need to update details?{' '}
+            <button
+              type="button"
+              onClick={() => {
+                navigateTo('register');
+                setForm(initialForm);
+                setCreatedUserId(null);
+              }}
+              className="font-semibold text-user-primary hover:underline"
+            >
+              Go back to registration
+            </button>
+          </p>
+        </form>
+      )}
+
+      {step === 'signin' && (
+        <form className="space-y-4" onSubmit={handleSignInSubmit} noValidate>
+          <div>
+            <label className="text-sm font-medium text-slate-600" htmlFor="signinEmail">
+              Email Address
+            </label>
+            <input
+              id="signinEmail"
+              type="email"
+              name="email"
+              value={signInForm.email}
+              onChange={handleSignInChange}
+              placeholder="example@gmail.com"
+              className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3"
+              required
+            />
+            {signInErrors.email && <p className="mt-1 text-xs text-red-500">{signInErrors.email}</p>}
+          </div>
+          <div>
+            <label className="text-sm font-medium text-slate-600" htmlFor="signinPassword">
+              Password
+            </label>
+            <input
+              id="signinPassword"
+              type="password"
+              name="password"
+              value={signInForm.password}
+              onChange={handleSignInChange}
+              placeholder="Your secure password"
+              className="w-full rounded-xl border border-slate-200 bg-white px-4 py-3"
+              required
+            />
+            {signInErrors.password && <p className="mt-1 text-xs text-red-500">{signInErrors.password}</p>}
+          </div>
+          {signInErrors.root && <p className="text-xs text-red-500">{signInErrors.root}</p>}
+          <button
+            type="submit"
+            disabled={isLoading}
+            className="w-full rounded-xl bg-slate-900 text-white py-3 font-semibold hover:bg-slate-800 transition disabled:cursor-not-allowed disabled:opacity-70"
+          >
+            {isLoading ? 'Signing in…' : 'Access Dashboard'}
+          </button>
+          <p className="text-center text-xs text-slate-500">
+            Need an account?{' '}
+            <button
+              type="button"
+              onClick={() => {
+                setForm(initialForm);
+                navigateTo('register');
+              }}
+              className="font-semibold text-user-primary hover:underline"
+            >
+              Create one now
+            </button>
+          </p>
         </form>
       )}
     </motion.div>

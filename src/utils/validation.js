@@ -77,6 +77,7 @@ export const validateGovernmentRegistration = ({
   department,
   officialEmail,
   region,
+  roleTitle,
   password,
   confirmPassword,
 }) => {
@@ -92,6 +93,10 @@ export const validateGovernmentRegistration = ({
 
   if (!region || region.trim().length < 2) {
     errors.region = 'Region or jurisdiction is required.';
+  }
+
+  if (!roleTitle) {
+    errors.roleTitle = 'Role or clearance level is required.';
   }
 
   if (!officialEmail) {

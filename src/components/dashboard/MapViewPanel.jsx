@@ -3,6 +3,8 @@ import { MapContainer, TileLayer, Marker, Popup } from 'react-leaflet';
 import L from 'leaflet';
 import PropTypes from 'prop-types';
 import { getAqiLevel } from '../../utils/aqi';
+import { Skeleton } from '../common';
+import { resolveUserLocation } from '../../services/geolocationService';
 
 import 'leaflet/dist/leaflet.css';
 import 'leaflet.markercluster/dist/MarkerCluster.css';
@@ -17,13 +19,47 @@ if (typeof window !== 'undefined' && process.env.NODE_ENV !== 'test') {
 
 const defaultCenter = [28.6139, 77.209]; // New Delhi
 
-const markerIcon = (color) =>
-  L.divIcon({
-    className: '',
-    html: `<span style="display:block;width:16px;height:16px;border-radius:9999px;background:${color};border:2px solid #fff;box-shadow:0 6px 14px -6px rgba(15,23,42,0.45);"></span>`,
-    iconSize: [16, 16],
-    iconAnchor: [8, 8],
+const markerIcon = ({ color, isTracked }) => {
+  const size = isTracked ? 22 : 16;
+  const border = isTracked ? 3 : 2;
+  const shadow = isTracked ? '0 14px 28px -18px rgba(15,23,42,0.55)' : '0 6px 14px -6px rgba(15,23,42,0.45)';
+  const ring = isTracked
+    ? `<span style="position:absolute;inset:-6px;border-radius:9999px;border:2px solid rgba(31,79,139,0.45);"></span>`
+    : '';
+
+  return L.divIcon({
+    className: 'aq-map-marker',
+    html: `
+      <span style="position:relative;display:flex;align-items:center;justify-content:center;width:${size}px;height:${size}px;border-radius:9999px;background:${color};border:${border}px solid #fff;box-shadow:${shadow};">
+        ${ring}
+      </span>
+    `,
+    iconSize: [size, size],
+    iconAnchor: [size / 2, size / 2],
   });
+};
+
+const mapboxToken = process.env.REACT_APP_MAPBOX_TOKEN;
+
+const getTileLayer = () => {
+  if (!mapboxToken) {
+    return {
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+      url: 'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+    };
+  }
+
+  return {
+    attribution:
+      '© <a href="https://www.mapbox.com/about/maps/">Mapbox</a> © <a href="http://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+    url: `https://api.mapbox.com/styles/v1/mapbox/light-v11/tiles/{z}/{x}/{y}?access_token=${mapboxToken}`,
+    options: {
+      tileSize: 512,
+      zoomOffset: -1,
+    },
+  };
+};
+const tileLayerConfig = getTileLayer();
 
 const userLocationIcon = L.divIcon({
   className: '',
@@ -58,28 +94,35 @@ const clusterIcon = (count, maxAqi, color, label) =>
     iconAnchor: [26, 26],
   });
 
-export const MapViewPanel = ({ cities, isLoading }) => {
+export const MapViewPanel = ({ cities, isLoading, onSelectCity }) => {
   const [mapInstance, setMapInstance] = useState(null);
   const [userLocation, setUserLocation] = useState(null);
   const [isLocating, setIsLocating] = useState(false);
   const [statusMessage, setStatusMessage] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
   const clusterGroupRef = useRef(null);
+  const trackedCount = useMemo(() => cities.filter((city) => city.isTracked).length, [cities]);
 
-    const markers = useMemo(() =>
+  const markers = useMemo(
+    () =>
       cities.map((city) => {
         const level = getAqiLevel(city.aqi);
         return {
           id: city.id,
           position: [city.lat, city.lng],
-          icon: markerIcon(city.color),
+          icon: markerIcon({ color: city.color, isTracked: city.isTracked }),
           popup: `${city.name} · AQI ${city.aqi}`,
           aqi: city.aqi,
           color: city.color,
           levelLabel: level.label,
           colorToken: level.color,
+          isTracked: city.isTracked,
+          dominantPollutant: city.dominantPollutant,
+          updatedAt: city.updatedAt,
         };
-      }), [cities]);
+      }),
+    [cities],
+  );
 
   const focusMap = useCallback(
     (lat, lng) => {
@@ -89,25 +132,6 @@ export const MapViewPanel = ({ cities, isLoading }) => {
     [mapInstance],
   );
 
-  const locateViaIp = useCallback(async () => {
-    try {
-      const response = await fetch('https://ipwho.is/?fields=latitude,longitude,city,success');
-      const data = await response.json();
-
-      if (!data.success) {
-        throw new Error('IP lookup failed');
-      }
-
-      const nextLocation = { lat: data.latitude, lng: data.longitude, source: 'ip', label: data.city };
-      setUserLocation(nextLocation);
-      setStatusMessage(`Centered on approximate location${nextLocation.label ? ` near ${nextLocation.label}` : ''}.`);
-      setErrorMessage('');
-      focusMap(nextLocation.lat, nextLocation.lng);
-    } catch (ipError) {
-      setErrorMessage('We could not determine your location automatically. Please select a city manually.');
-    }
-  }, [focusMap]);
-
   const handleLocate = useCallback(() => {
     if (isLocating) return;
 
@@ -115,37 +139,33 @@ export const MapViewPanel = ({ cities, isLoading }) => {
     setStatusMessage('Locating…');
     setErrorMessage('');
 
-    if (typeof window === 'undefined' || !navigator.geolocation) {
-      setStatusMessage('');
-      locateViaIp().finally(() => setIsLocating(false));
-      return;
-    }
-
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        const nextLocation = {
-          lat: position.coords.latitude,
-          lng: position.coords.longitude,
-          source: 'gps',
-        };
-        setUserLocation(nextLocation);
-        setStatusMessage('Centered on your current location.');
-        setErrorMessage('');
-        focusMap(nextLocation.lat, nextLocation.lng);
-        setIsLocating(false);
-      },
-      (err) => {
-        if (err.code === err.PERMISSION_DENIED) {
-          setErrorMessage('Location permission denied. Falling back to approximate location.');
-        } else {
-          setErrorMessage('Unable to access precise location. Using approximate location instead.');
+    resolveUserLocation()
+      .then((result) => {
+        if (!result?.location) {
+          if (result?.error) {
+            setErrorMessage(result.error);
+          }
+          setStatusMessage('');
+          return;
         }
+
+        setUserLocation(result.location);
+        focusMap(result.location.lat, result.location.lng);
+        setStatusMessage(
+          result.fallback
+            ? `Centered on approximate location${result.location.label ? ` near ${result.location.label}` : ''}.`
+            : 'Centered on your current location.',
+        );
+        setErrorMessage(result.fallback && result.error ? result.error : '');
+      })
+      .catch((error) => {
+        setErrorMessage(error?.message ?? 'Unable to determine your location automatically.');
         setStatusMessage('');
-        locateViaIp().finally(() => setIsLocating(false));
-      },
-      { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 },
-    );
-  }, [focusMap, isLocating, locateViaIp]);
+      })
+      .finally(() => {
+        setIsLocating(false);
+      });
+  }, [focusMap, isLocating]);
 
   useEffect(() => {
     if (userLocation) {
@@ -176,12 +196,22 @@ export const MapViewPanel = ({ cities, isLoading }) => {
     let label = 'AQI';
 
     const leafletMarkers = markers.map((marker) => {
-      const leafletMarker = L.marker(marker.position, { icon: marker.icon, metadata: { aqi: marker.aqi, color: marker.color, label: marker.levelLabel } }).bindPopup(
-        `<div style="min-width:140px;font-family:'Inter',system-ui;color:#0f172a">
+      const leafletMarker = L.marker(marker.position, {
+        icon: marker.icon,
+        metadata: { aqi: marker.aqi, color: marker.color, label: marker.levelLabel, isTracked: marker.isTracked },
+      }).bindPopup(
+        `<div style="min-width:160px;font-family:'Inter',system-ui;color:#0f172a">
           <p style="margin:0;font-weight:600">${marker.popup}</p>
-          <p style="margin-top:4px;font-size:12px;color:#64748b">Tap for insights or track changes.</p>
+          <p style="margin-top:4px;font-size:12px;color:#64748b">Dominant: ${marker.dominantPollutant ?? '—'}</p>
         </div>`,
       );
+
+      if (onSelectCity) {
+        leafletMarker.on('click', () => {
+          onSelectCity(marker.id);
+        });
+      }
+
       if (marker.aqi > maxAqi) {
         maxAqi = marker.aqi;
         dominantColor = marker.color;
@@ -198,6 +228,8 @@ export const MapViewPanel = ({ cities, isLoading }) => {
       let clusterColor = dominantColor;
       let clusterLabel = label;
 
+      let trackedInside = false;
+
       children.forEach((child) => {
         const meta = child.options?.metadata ?? {};
         if (typeof meta.aqi === 'number' && meta.aqi > highestAqi) {
@@ -205,15 +237,23 @@ export const MapViewPanel = ({ cities, isLoading }) => {
           clusterColor = meta.color ?? clusterColor;
           clusterLabel = meta.label ?? clusterLabel;
         }
+        if (meta.isTracked) {
+          trackedInside = true;
+        }
       });
 
-      return clusterIcon(cluster.getChildCount(), highestAqi || maxAqi, clusterColor, clusterLabel);
+      return clusterIcon(
+        cluster.getChildCount(),
+        highestAqi || maxAqi,
+        trackedInside ? '#1f4f8b' : clusterColor,
+        clusterLabel,
+      );
     };
 
     return () => {
       clusterGroup.clearLayers();
     };
-  }, [isLoading, mapInstance, markers]);
+  }, [isLoading, mapInstance, markers, onSelectCity]);
 
   useEffect(() => () => {
     if (mapInstance && clusterGroupRef.current) {
@@ -223,11 +263,11 @@ export const MapViewPanel = ({ cities, isLoading }) => {
   }, [mapInstance]);
 
   const mapSection = isLoading ? (
-    <div className="h-[28rem] rounded-3xl overflow-hidden border border-white/60 bg-gradient-to-br from-slate-100 via-white to-slate-200">
-      <div className="h-full w-full animate-pulse bg-[radial-gradient(circle_at_top,_rgba(148,163,184,0.35),_transparent_60%)]" />
-    </div>
+    <Skeleton className="h-[28rem] rounded-3xl overflow-hidden border border-white/60" shimmer={false}>
+      Loading map
+    </Skeleton>
   ) : (
-    <div className="relative h-[28rem] rounded-3xl overflow-hidden shadow-lg border border-white/60">
+    <div className="relative h-[28rem] rounded-3xl overflow-hidden border border-white/60 shadow-lg" aria-busy={isLoading} aria-live="polite">
       <MapContainer
         center={defaultCenter}
         zoom={5}
@@ -240,8 +280,9 @@ export const MapViewPanel = ({ cities, isLoading }) => {
         }}
       >
         <TileLayer
-          attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-          url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+          attribution={tileLayerConfig.attribution}
+          url={tileLayerConfig.url}
+          {...(tileLayerConfig.options ?? {})}
         />
         {userLocation && (
           <Marker
@@ -273,10 +314,29 @@ export const MapViewPanel = ({ cities, isLoading }) => {
     <div className="space-y-4">
       {mapSection}
 
+      {!isLoading && trackedCount === 0 && (
+        <div className="rounded-2xl border border-slate-100 bg-white/80 p-4 text-sm text-slate-600 shadow-sm">
+          Add cities to your watchlist from the Tracking tab to highlight them here.
+        </div>
+      )}
+
       {(statusMessage || errorMessage) && (
-        <div className="space-y-1 text-sm">
-          {statusMessage && <p className="text-slate-600">{statusMessage}</p>}
-          {errorMessage && <p className="text-red-500">{errorMessage}</p>}
+        <div className="space-y-1 text-sm" aria-live="polite">
+          {statusMessage && <p className="text-slate-600" role="status">{statusMessage}</p>}
+          {errorMessage && <p className="text-red-500" role="alert">{errorMessage}</p>}
+        </div>
+      )}
+
+      {!isLoading && (
+        <div className="flex flex-wrap gap-3 text-xs text-slate-600">
+          <span className="inline-flex items-center gap-2 rounded-full bg-white/80 px-3 py-1 shadow-sm">
+            <span className="inline-flex h-3 w-3 rounded-full border-2 border-user-primary bg-white" aria-hidden />
+            Tracked cities
+          </span>
+          <span className="inline-flex items-center gap-2 rounded-full bg-white/70 px-3 py-1 shadow-sm">
+            <span className="inline-flex h-3 w-3 rounded-full bg-slate-400" aria-hidden />
+            Catalog cities
+          </span>
         </div>
       )}
     </div>
@@ -291,11 +351,15 @@ MapViewPanel.propTypes = {
       lng: PropTypes.number.isRequired,
       aqi: PropTypes.number.isRequired,
       color: PropTypes.string.isRequired,
+      dominantPollutant: PropTypes.string,
+      isTracked: PropTypes.bool,
     }),
   ).isRequired,
   isLoading: PropTypes.bool,
+  onSelectCity: PropTypes.func,
 };
 
 MapViewPanel.defaultProps = {
   isLoading: false,
+  onSelectCity: undefined,
 };

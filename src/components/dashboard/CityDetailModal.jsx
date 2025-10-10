@@ -24,7 +24,7 @@ const modalContent = {
   exit: { opacity: 0, scale: 0.96, y: 20, transition: { duration: 0.2, ease: 'easeIn' } },
 };
 
-export const CityDetailModal = ({ city, onClose }) => {
+export const CityDetailModal = ({ city, onClose, onOpenAnalysis }) => {
   useEffect(() => {
     if (!city) {
       return undefined;
@@ -45,6 +45,13 @@ export const CityDetailModal = ({ city, onClose }) => {
   }
 
   const aqiLevel = getAqiLevel(city.aqi);
+  const populationDisplay = Number.isFinite(city.population)
+    ? city.population.toLocaleString()
+    : '—';
+  const timezoneOffset = city.metadata?.timezoneOffset ?? null;
+  const timezoneDisplay = timezoneOffset === null
+    ? '—'
+    : `UTC${timezoneOffset >= 0 ? '+' : ''}${timezoneOffset}`;
 
   return (
     <AnimatePresence>
@@ -94,6 +101,19 @@ export const CityDetailModal = ({ city, onClose }) => {
             </div>
           </div>
 
+          <div className="grid gap-4 sm:grid-cols-2">
+            <div className="rounded-2xl border border-slate-100 bg-white/70 p-5 shadow-inner">
+              <p className="text-xs uppercase tracking-wide text-slate-500">Population</p>
+              <p className="mt-2 text-xl font-semibold text-slate-900">{populationDisplay}</p>
+              <p className="mt-1 text-xs text-slate-500">Estimated residents within metro boundary.</p>
+            </div>
+            <div className="rounded-2xl border border-slate-100 bg-white/70 p-5 shadow-inner">
+              <p className="text-xs uppercase tracking-wide text-slate-500">Region &amp; Timezone</p>
+              <p className="mt-2 text-xl font-semibold text-slate-900">{city.region ?? '—'}</p>
+              <p className="mt-1 text-xs text-slate-500">Timezone: {timezoneDisplay}</p>
+            </div>
+          </div>
+
           <div className="space-y-4">
             <h3 className="text-lg font-semibold text-slate-900">Pollutant concentrations</h3>
             <div className="space-y-3">
@@ -122,6 +142,21 @@ export const CityDetailModal = ({ city, onClose }) => {
                 : 'Air quality is deteriorating. Consider limiting outdoor exertion and use air purifiers indoors.'}
             </p>
           </div>
+
+          <div className="flex flex-wrap items-center justify-end gap-3">
+            <button
+              type="button"
+              onClick={() => onOpenAnalysis?.(city.id)}
+              disabled={!onOpenAnalysis}
+              className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
+                onOpenAnalysis
+                  ? 'bg-user-primary text-white shadow-sm hover:bg-user-primary/90'
+                  : 'bg-slate-200 text-slate-400'
+              }`}
+            >
+              View full analysis
+            </button>
+          </div>
         </motion.div>
       </motion.div>
     </AnimatePresence>
@@ -140,10 +175,19 @@ CityDetailModal.propTypes = {
     lat: PropTypes.number.isRequired,
     lng: PropTypes.number.isRequired,
     pollutants: PropTypes.objectOf(PropTypes.oneOfType([PropTypes.string, PropTypes.number])).isRequired,
+    population: PropTypes.number,
+    region: PropTypes.string,
+    metadata: PropTypes.shape({
+      timezoneOffset: PropTypes.number,
+      population: PropTypes.number,
+      source: PropTypes.string,
+    }),
   }),
   onClose: PropTypes.func.isRequired,
+  onOpenAnalysis: PropTypes.func,
 };
 
 CityDetailModal.defaultProps = {
   city: null,
+  onOpenAnalysis: undefined,
 };

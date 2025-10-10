@@ -31,7 +31,7 @@ const stats = [
 ];
 
 export const HeroSection = () => (
-  <section className="relative overflow-hidden bg-gradient-to-br from-white via-user-muted/60 to-gov-muted/60">
+  <section className="relative overflow-hidden backdrop-mesh">
     <div className="absolute inset-0 hero-gradient" />
     <div className="absolute -top-20 -right-32 hidden lg:block">
       <div className="w-[28rem] h-[28rem] bg-user-accent/20 rounded-full blur-3xl" />

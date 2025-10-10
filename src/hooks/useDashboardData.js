@@ -1,6 +1,20 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo } from 'react';
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { usePersistentState } from './usePersistentState';
+import { useOpenAqSnapshotCache } from './useOpenAqSnapshotCache';
 import { getAqiLevel } from '../utils/aqi';
+import { useAuth } from '../context/AuthContext';
+import {
+  CITY_CATALOG,
+  CITY_CATALOG_BY_ID,
+} from '../data/cityCatalog';
+import {
+  fetchDashboardPreferences,
+  updateDashboardPreferences,
+  fetchCityMetrics,
+  searchCities,
+  getInitialTrackedCities,
+} from '../services/dashboardService';
 
 const AQI_COLOR_HEX = {
   'aqi-good': '#31d17c',
@@ -18,126 +32,32 @@ const BADGE_FROM_COLOR = {
   'aqi-hazardous': 'hazardous',
 };
 
-const CITY_CATALOG = [
-  {
-    id: 'delhi',
-    name: 'New Delhi',
-    country: 'India',
-    aqi: 182,
-    dominantPollutant: 'PM2.5',
-    updated: '12 mins ago',
-    trend: 'Rising',
-    lat: 28.6139,
-    lng: 77.209,
-    pollutants: {
-      'PM2.5': '182 µg/m³',
-      PM10: '98 µg/m³',
-      CO: '0.7 ppm',
-      NO2: '44 ppb',
-      SO2: '12 ppb',
-      O3: '23 ppb',
-    },
-  },
-  {
-    id: 'mumbai',
-    name: 'Mumbai',
-    country: 'India',
-    aqi: 120,
-    dominantPollutant: 'PM10',
-    updated: '8 mins ago',
-    trend: 'Stable',
-    lat: 19.076,
-    lng: 72.8777,
-    pollutants: {
-      'PM2.5': '96 µg/m³',
-      PM10: '120 µg/m³',
-      CO: '0.4 ppm',
-      NO2: '28 ppb',
-      SO2: '8 ppb',
-      O3: '31 ppb',
-    },
-  },
-  {
-    id: 'london',
-    name: 'London',
-    country: 'United Kingdom',
-    aqi: 68,
-    dominantPollutant: 'NO₂',
-    updated: '4 mins ago',
-    trend: 'Improving',
-    lat: 51.5072,
-    lng: -0.1276,
-    pollutants: {
-      'PM2.5': '34 µg/m³',
-      PM10: '50 µg/m³',
-      CO: '0.3 ppm',
-      NO2: '22 ppb',
-      SO2: '4 ppb',
-      O3: '19 ppb',
-    },
-  },
-  {
-    id: 'sydney',
-    name: 'Sydney',
-    country: 'Australia',
-    aqi: 75,
-    dominantPollutant: 'O₃',
-    updated: '18 mins ago',
-    trend: 'Stable',
-    lat: -33.8688,
-    lng: 151.2093,
-    pollutants: {
-      'PM2.5': '38 µg/m³',
-      PM10: '52 µg/m³',
-      CO: '0.3 ppm',
-      NO2: '18 ppb',
-      SO2: '5 ppb',
-      O3: '37 ppb',
-    },
-  },
-  {
-    id: 'san-francisco',
-    name: 'San Francisco',
-    country: 'USA',
-    aqi: 88,
-    dominantPollutant: 'PM2.5',
-    updated: '6 mins ago',
-    trend: 'Rising',
-    lat: 37.7749,
-    lng: -122.4194,
-    pollutants: {
-      'PM2.5': '88 µg/m³',
-      PM10: '60 µg/m³',
-      CO: '0.5 ppm',
-      NO2: '25 ppb',
-      SO2: '6 ppb',
-      O3: '21 ppb',
-    },
-  },
-  {
-    id: 'paris',
-    name: 'Paris',
-    country: 'France',
-    aqi: 94,
-    dominantPollutant: 'NO₂',
-    updated: '11 mins ago',
-    trend: 'Improving',
-    lat: 48.8566,
-    lng: 2.3522,
-    pollutants: {
-      'PM2.5': '52 µg/m³',
-      PM10: '66 µg/m³',
-      CO: '0.4 ppm',
-      NO2: '31 ppb',
-      SO2: '9 ppb',
-      O3: '18 ppb',
-    },
-  },
-];
+const getRelativeUpdate = (index) => `${(index * 7) % 47 + 3} mins ago`;
 
-const DEFAULT_TRACKED_IDS = ['delhi', 'mumbai', 'london'];
+const getTrendLabel = (aqi, index) => {
+  if (aqi >= 200) return 'Rising';
+  if (aqi <= 75) return 'Improving';
+  return ['Stable', 'Rising', 'Improving', 'Volatile'][index % 4] ?? 'Stable';
+};
 
-const DEFAULT_TRACKED = CITY_CATALOG.filter((city) => DEFAULT_TRACKED_IDS.includes(city.id));
+const formatUpdatedLabel = (updatedAt, index) => {
+  if (!updatedAt) {
+    return getRelativeUpdate(index);
+  }
+
+  const timestamp = new Date(updatedAt).getTime();
+  if (Number.isNaN(timestamp)) {
+    return getRelativeUpdate(index);
+  }
+
+  const diffMinutes = Math.max(0, Math.round((Date.now() - timestamp) / 60000));
+  if (diffMinutes <= 1) return 'Just now';
+  if (diffMinutes < 60) return `${diffMinutes} mins ago`;
+  const diffHours = Math.round(diffMinutes / 60);
+  if (diffHours < 24) return `${diffHours}h ago`;
+  const diffDays = Math.round(diffHours / 24);
+  return `${diffDays}d ago`;
+};
 
 const buildTrendData = (cities) => {
   const baseSeries = [148, 165, 132, 118, 126, 142, 120];
@@ -162,7 +82,7 @@ const calculateInsights = (cities) => {
           description: 'Select a city to unlock personalized alerts and insights.',
         },
       ],
-      trends: buildTrendData([]),
+      trends: [],
       pollutantLeaders: [],
     };
   }
@@ -179,7 +99,7 @@ const calculateInsights = (cities) => {
       value: `${atRiskCities.length}`,
       change: `${cities.length} tracked total`,
       trend: atRiskCities.length > 0 ? 'up' : 'down',
-  badge: atRiskCities.length > 0 ? 'unhealthy' : 'good',
+      badge: atRiskCities.length > 0 ? 'unhealthy' : 'good',
       description: atRiskCities.length > 0
         ? 'Take action: limit outdoor activity and enable purifier alerts.'
         : 'All tracked cities currently below critical AQI thresholds.',
@@ -189,7 +109,7 @@ const calculateInsights = (cities) => {
       value: `${averageAqi}`,
       change: 'Rolling 24h composite',
       trend: averageAqi > 100 ? 'up' : 'down',
-  badge: BADGE_FROM_COLOR[getAqiLevel(averageAqi).color] ?? 'moderate',
+      badge: BADGE_FROM_COLOR[getAqiLevel(averageAqi).color] ?? 'moderate',
       description: 'Helps prioritize where to deploy interventions first.',
     },
     {
@@ -197,7 +117,7 @@ const calculateInsights = (cities) => {
       value: bestCity.name,
       change: `AQI ${bestCity.aqi}`,
       trend: 'neutral',
-  badge: BADGE_FROM_COLOR[getAqiLevel(bestCity.aqi).color] ?? 'good',
+      badge: BADGE_FROM_COLOR[getAqiLevel(bestCity.aqi).color] ?? 'good',
       description: `${bestCity.name} currently leads your watchlist for best air quality.`,
     },
   ];
@@ -214,85 +134,282 @@ const calculateInsights = (cities) => {
   };
 };
 
+const arraysEqual = (left = [], right = []) => {
+  if (left === right) return true;
+  if (!Array.isArray(left) || !Array.isArray(right)) return false;
+  if (left.length !== right.length) return false;
+  for (let index = 0; index < left.length; index += 1) {
+    if (left[index] !== right[index]) {
+      return false;
+    }
+  }
+  return true;
+};
+
 export const useDashboardData = () => {
-  const [trackedCities, setTrackedCities] = usePersistentState('aq-tracked-cities', DEFAULT_TRACKED);
-  const [isLoading, setIsLoading] = useState(true);
+  const { user } = useAuth();
+  const [trackedCityState, setTrackedCityIds] = usePersistentState(
+    'aq-tracked-city-ids',
+    getInitialTrackedCities(),
+  );
+  const trackedCityIds = useMemo(
+    () => (Array.isArray(trackedCityState) ? trackedCityState : []),
+    [trackedCityState],
+  );
+  const queryClient = useQueryClient();
+
+  const {
+    getCachedSnapshots,
+    storeSnapshots,
+    pruneExpiredSnapshots,
+  } = useOpenAqSnapshotCache();
+
+  const decorateCity = useCallback((city, index) => ({
+    ...city,
+    updated: formatUpdatedLabel(city.updatedAt, index),
+    trend: getTrendLabel(city.aqi, index),
+  }), []);
 
   useEffect(() => {
-    const timeout = setTimeout(() => setIsLoading(false), 350);
-    return () => clearTimeout(timeout);
-  }, []);
+    pruneExpiredSnapshots();
+  }, [pruneExpiredSnapshots]);
 
-  const mapCities = useMemo(
-    () =>
-      trackedCities.map((city) => {
-        const level = getAqiLevel(city.aqi);
-        return {
-          id: city.id,
-          name: city.name,
-          lat: city.lat,
-          lng: city.lng,
-          aqi: city.aqi,
-          color: AQI_COLOR_HEX[level.color] ?? '#1f4f8b',
-        };
+  const preferencesKey = useMemo(
+    () => ['dashboard-preferences', user?.id ?? 'anonymous'],
+    [user?.id],
+  );
+
+  const metricsKey = useMemo(
+    () => ['dashboard-metrics', trackedCityIds.join('|')],
+    [trackedCityIds],
+  );
+
+  const preferencesQuery = useQuery({
+    queryKey: preferencesKey,
+    queryFn: async () => (await fetchDashboardPreferences(user?.id)) ?? { data: null, error: null },
+    staleTime: 5 * 60 * 1000,
+    gcTime: 30 * 60 * 1000,
+    refetchOnWindowFocus: false,
+  });
+
+  const cachedPlaceholder = useMemo(() => {
+    if (!trackedCityIds.length) {
+      return [];
+    }
+    const cachedSnapshots = getCachedSnapshots(trackedCityIds);
+    if (!cachedSnapshots.length) {
+      return trackedCityIds
+        .map((cityId) => CITY_CATALOG_BY_ID[cityId])
+        .filter(Boolean);
+    }
+    const cachedSnapshotMap = new Map(cachedSnapshots.map((snapshot) => [snapshot.id, snapshot]));
+    return trackedCityIds
+      .map((cityId) => cachedSnapshotMap.get(cityId) ?? CITY_CATALOG_BY_ID[cityId])
+      .filter(Boolean);
+  }, [getCachedSnapshots, trackedCityIds]);
+
+  const metricsQuery = useQuery({
+    queryKey: metricsKey,
+    enabled: trackedCityIds.length > 0,
+    queryFn: async () => {
+      const result = (await fetchCityMetrics(trackedCityIds)) ?? { data: [], error: null };
+      if (result.error) {
+        const error = new Error(result.error);
+        error.fallbackData = result.data ?? [];
+        throw error;
+      }
+      return result.data ?? [];
+    },
+    placeholderData: cachedPlaceholder,
+    staleTime: 2 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
+    refetchOnWindowFocus: false,
+  });
+
+  const preferencesData = preferencesQuery.data?.data ?? null;
+  const preferencesError = preferencesQuery.data?.error ?? preferencesQuery.error?.message ?? null;
+
+  const resolvedMetrics = useMemo(() => {
+    if (Array.isArray(metricsQuery.data)) {
+      return metricsQuery.data;
+    }
+    if (metricsQuery.error?.fallbackData) {
+      return metricsQuery.error.fallbackData;
+    }
+    return cachedPlaceholder;
+  }, [cachedPlaceholder, metricsQuery.data, metricsQuery.error]);
+
+  useEffect(() => {
+    if (Array.isArray(resolvedMetrics) && resolvedMetrics.length) {
+      storeSnapshots(resolvedMetrics);
+    }
+  }, [resolvedMetrics, storeSnapshots]);
+
+  useEffect(() => {
+    if (!preferencesData?.trackedCityIds?.length) {
+      return;
+    }
+    setTrackedCityIds((prev) => (
+      arraysEqual(prev, preferencesData.trackedCityIds)
+        ? prev
+        : preferencesData.trackedCityIds
+    ));
+  }, [preferencesData?.trackedCityIds, setTrackedCityIds]);
+
+  const updatePreferencesMutation = useMutation({
+    mutationFn: ({ trackedCityIds: nextTrackedIds, favorites }) =>
+      updateDashboardPreferences({
+        userId: user?.id,
+        trackedCityIds: nextTrackedIds,
+        favorites,
       }),
-    [trackedCities],
+    onError: () => {
+      queryClient.invalidateQueries({ queryKey: preferencesKey });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: preferencesKey });
+    },
+  });
+
+  const persistPreferences = useCallback(
+    async (nextTrackedIds, options = {}) => {
+      const deduped = Array.from(new Set(nextTrackedIds));
+      setTrackedCityIds(deduped);
+
+      queryClient.setQueryData(preferencesKey, (previous) => {
+        const fallback = previous?.data ?? {
+          trackedCityIds: deduped,
+          favorites: preferencesData?.favorites ?? [],
+        };
+        return {
+          data: {
+            ...fallback,
+            trackedCityIds: deduped,
+          },
+          error: null,
+        };
+      });
+
+      if (options.skipSync) {
+        return;
+      }
+
+      await updatePreferencesMutation.mutateAsync({
+        trackedCityIds: deduped,
+        favorites: preferencesData?.favorites ?? [],
+      });
+    },
+    [preferencesData?.favorites, preferencesKey, queryClient, setTrackedCityIds, updatePreferencesMutation],
   );
 
   const removeCity = useCallback((cityId) => {
-    setTrackedCities((prev) => prev.filter((city) => city.id !== cityId));
-  }, [setTrackedCities]);
+    const next = trackedCityIds.filter((id) => id !== cityId);
+    if (next.length === trackedCityIds.length) {
+      return;
+    }
+    persistPreferences(next);
+  }, [persistPreferences, trackedCityIds]);
 
   const reorderCity = useCallback(
     (cityId, targetIndex) => {
-      setTrackedCities((prev) => {
-        const currentIndex = prev.findIndex((city) => city.id === cityId);
-        if (currentIndex === -1 || targetIndex < 0 || targetIndex >= prev.length) {
-          return prev;
-        }
-        const newOrder = [...prev];
-        const [moved] = newOrder.splice(currentIndex, 1);
-        newOrder.splice(targetIndex, 0, moved);
-        return newOrder;
-      });
+      const currentIndex = trackedCityIds.findIndex((id) => id === cityId);
+      if (currentIndex === -1 || targetIndex < 0 || targetIndex >= trackedCityIds.length) {
+        return;
+      }
+
+      const next = [...trackedCityIds];
+      const [moved] = next.splice(currentIndex, 1);
+      next.splice(targetIndex, 0, moved);
+      persistPreferences(next);
     },
-    [setTrackedCities],
+    [persistPreferences, trackedCityIds],
   );
 
   const addCity = useCallback(
     (cityId) => {
-      const catalogEntry = CITY_CATALOG.find((city) => city.id === cityId);
-      if (!catalogEntry) {
+      if (!CITY_CATALOG_BY_ID[cityId]) {
         return;
       }
 
-      setTrackedCities((prev) => {
-        if (prev.some((existing) => existing.id === catalogEntry.id)) {
-          return prev;
-        }
-        return [...prev, catalogEntry];
-      });
+      if (trackedCityIds.includes(cityId)) {
+        return;
+      }
+
+      persistPreferences([...trackedCityIds, cityId]);
     },
-    [setTrackedCities],
+    [persistPreferences, trackedCityIds],
   );
+
+  const trackedCitySet = useMemo(() => new Set(trackedCityIds), [trackedCityIds]);
 
   const availableCities = useMemo(
-    () => CITY_CATALOG.filter((city) => !trackedCities.some((tracked) => tracked.id === city.id)),
-    [trackedCities],
+    () => CITY_CATALOG.filter((city) => !trackedCitySet.has(city.id)),
+    [trackedCitySet],
   );
 
-  const insights = useMemo(() => calculateInsights(trackedCities), [trackedCities]);
+  const metricsMap = useMemo(
+    () => new Map(resolvedMetrics.map((city) => [city.id, city])),
+    [resolvedMetrics],
+  );
+
+  const mapCities = useMemo(
+    () =>
+      CITY_CATALOG.map((catalogCity) => {
+        const metric = metricsMap.get(catalogCity.id);
+        const merged = metric
+          ? {
+              ...catalogCity,
+              ...metric,
+              pollutants: metric.pollutants ?? catalogCity.pollutants,
+              dominantPollutant: metric.dominantPollutant ?? catalogCity.dominantPollutant,
+            }
+          : catalogCity;
+        const level = getAqiLevel(merged.aqi);
+        return {
+          id: merged.id,
+          name: merged.name,
+          lat: merged.lat,
+          lng: merged.lng,
+          aqi: merged.aqi,
+          color: AQI_COLOR_HEX[level.color] ?? '#1f4f8b',
+          dominantPollutant: merged.dominantPollutant,
+          pollutants: merged.pollutants,
+          isTracked: trackedCitySet.has(merged.id),
+          updatedAt: merged.updatedAt ?? null,
+        };
+      }),
+    [metricsMap, trackedCitySet],
+  );
+
+  const decoratedTrackedCities = useMemo(() => {
+    return trackedCityIds
+      .map((cityId, index) => {
+        const base = metricsMap.get(cityId) ?? CITY_CATALOG_BY_ID[cityId];
+        if (!base) {
+          return null;
+        }
+        return decorateCity(base, index);
+      })
+      .filter(Boolean);
+  }, [decorateCity, metricsMap, trackedCityIds]);
+
+  const insights = useMemo(() => calculateInsights(decoratedTrackedCities), [decoratedTrackedCities]);
+
+  const searchCatalog = useCallback((query) => searchCities(query), []);
 
   return {
-    trackedCities,
+    trackedCities: decoratedTrackedCities,
     mapCities,
     availableCities,
     insights,
-    isLoading,
+    isLoading: preferencesQuery.isLoading || metricsQuery.isPending,
+    isFetching: metricsQuery.isFetching,
+    error: metricsQuery.error?.message ?? preferencesError,
     actions: {
       addCity,
       removeCity,
       reorderCity,
+      searchCatalog,
     },
   };
 };

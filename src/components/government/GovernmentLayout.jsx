@@ -90,7 +90,7 @@ export const GovernmentLayout = ({
 				</div>
 			</aside>
 
-			<main className="flex-1 space-y-6">
+			<main id="main-content" tabIndex="-1" className="flex-1 space-y-6">
 				<header className="glass-panel p-10">
 					<span className="inline-flex items-center gap-2 text-sm font-medium uppercase tracking-[0.35em] text-gov-accent">
 						<span className="block h-2 w-2 rounded-full bg-gov-accent animate-pulse" />

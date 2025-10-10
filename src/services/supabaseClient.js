@@ -23,12 +23,44 @@ const createStubSupabase = () => {
       }),
     },
     from: () => {
+      let promise = Promise.resolve({ data: null, error: notConfiguredError });
+
       const builder = {
         select: () => builder,
+        order: () => builder,
+        limit: () => builder,
         eq: () => builder,
-        upsert: async () => ({ data: null, error: notConfiguredError }),
-        maybeSingle: async () => ({ data: null, error: notConfiguredError }),
+        ilike: () => builder,
+        in: () => builder,
+        upsert: () => {
+          promise = Promise.resolve({ data: null, error: notConfiguredError });
+          return builder;
+        },
+        insert: () => {
+          promise = Promise.resolve({ data: null, error: notConfiguredError });
+          return builder;
+        },
+        update: () => {
+          promise = Promise.resolve({ data: null, error: notConfiguredError });
+          return builder;
+        },
+        delete: () => {
+          promise = Promise.resolve({ error: notConfiguredError });
+          return builder;
+        },
+        maybeSingle: () => {
+          promise = Promise.resolve({ data: null, error: notConfiguredError });
+          return builder;
+        },
+        single: () => {
+          promise = Promise.resolve({ data: null, error: notConfiguredError });
+          return builder;
+        },
+        then: (resolve, reject) => promise.then(resolve, reject),
+        catch: (reject) => promise.catch(reject),
+        finally: (callback) => promise.finally(callback),
       };
+
       return builder;
     },
   };

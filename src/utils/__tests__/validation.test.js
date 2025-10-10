@@ -59,6 +59,7 @@ describe('validation utilities', () => {
       department: 'Environment',
       officialEmail: 'ig@moef.gov.in',
       region: 'Delhi',
+      roleTitle: 'environment-analyst',
       password: 'N3wPass!word',
       confirmPassword: 'N3wPass!word',
     });
@@ -69,10 +70,12 @@ describe('validation utilities', () => {
       department: '',
       officialEmail: 'user@gmail.com',
       region: '',
+      roleTitle: '',
       password: 'short',
       confirmPassword: 'different',
     });
     expect(isFormValid(badGov)).toBe(false);
     expect(Object.keys(badGov).length).toBeGreaterThan(0);
+    expect(badGov.roleTitle).toMatch(/Role/);
   });
 });

@@ -10,11 +10,11 @@ export const SectionHeading = ({ eyebrow, title, description, alignment = 'cente
           {eyebrow}
         </span>
       )}
-      <h2 className="text-3xl sm:text-4xl lg:text-5xl font-display font-semibold text-slate-900">
+      <h2 className="text-3xl sm:text-4xl lg:text-5xl font-display font-semibold text-slate-900 text-balance">
         {title}
       </h2>
       {description && (
-        <p className="text-base sm:text-lg text-slate-600 max-w-3xl">
+        <p className="text-base sm:text-lg text-slate-600 max-w-3xl text-balance">
           {description}
         </p>
       )}

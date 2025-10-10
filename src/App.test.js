@@ -1,7 +1,10 @@
 import { render, screen } from '@testing-library/react';
 import App from './App';
 
-test('renders landing hero headline', () => {
+test('renders landing hero headline', async () => {
   render(<App />);
-  expect(screen.getByText(/Realtime air health intelligence/i)).toBeInTheDocument();
+  const heroHeading = await screen.findByText(/Realtime air health intelligence/i, undefined, {
+    timeout: 5000,
+  });
+  expect(heroHeading).toBeInTheDocument();
 });
