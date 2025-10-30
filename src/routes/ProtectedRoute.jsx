@@ -3,6 +3,7 @@ import { Navigate, useLocation } from 'react-router-dom';
 import { useEffect, useMemo, useRef } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { logAccessDenied, logAccessGranted } from '../services/securityService';
+import { hasSupabaseCredentials } from '../services/supabaseClient';
 
 export const ProtectedRoute = ({ children, allowedRoles = [] }) => {
   const { loading, user, profile } = useAuth();
@@ -10,6 +11,13 @@ export const ProtectedRoute = ({ children, allowedRoles = [] }) => {
   const lastAuditRef = useRef(null);
 
   const accessOutcome = useMemo(() => {
+    // Demo mode: Allow access to all routes when Supabase is not configured
+    if (!hasSupabaseCredentials) {
+      // Determine demo role based on route
+      const demoRole = location.pathname.startsWith('/gov') ? 'government' : 'citizen';
+      return { status: 'granted', role: demoRole, isDemo: true };
+    }
+
     if (loading) {
       return { status: 'pending' };
     }
@@ -27,7 +35,7 @@ export const ProtectedRoute = ({ children, allowedRoles = [] }) => {
     }
 
     return { status: 'granted', role: profile?.role ?? user.user_metadata?.role };
-  }, [allowedRoles, loading, profile?.role, user]);
+  }, [allowedRoles, loading, profile?.role, user, location.pathname]);
 
   useEffect(() => {
     if (accessOutcome.status === 'pending') {
@@ -57,7 +65,7 @@ export const ProtectedRoute = ({ children, allowedRoles = [] }) => {
     }
   }, [accessOutcome, location.pathname, location.search, user?.id]);
 
-  if (loading) {
+  if (accessOutcome.status === 'pending') {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-100">
         <div className="glass-panel p-10 text-center">
@@ -67,12 +75,20 @@ export const ProtectedRoute = ({ children, allowedRoles = [] }) => {
     );
   }
 
-  if (!user) {
+  if (accessOutcome.status === 'denied') {
     return <Navigate to="/" replace />;
   }
 
-  if (accessOutcome.status === 'denied') {
-    return <Navigate to="/" replace />;
+  // Show demo banner if in demo mode
+  if (accessOutcome.isDemo) {
+    return (
+      <div>
+        <div className="bg-gradient-to-r from-blue-500 to-purple-600 text-white text-center py-2 px-4 text-sm">
+          🔬 Demo Mode: Running with local data - No Supabase configuration required
+        </div>
+        {children}
+      </div>
+    );
   }
 
   return children;
