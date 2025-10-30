@@ -5,6 +5,7 @@ import PropTypes from 'prop-types';
 import { getAqiLevel } from '../../utils/aqi';
 import { Skeleton } from '../common';
 import { resolveUserLocation } from '../../services/geolocationService';
+import useMapboxGuardrail from '../../hooks/useMapboxGuardrail';
 
 import 'leaflet/dist/leaflet.css';
 import 'leaflet.markercluster/dist/MarkerCluster.css';
@@ -100,8 +101,50 @@ export const MapViewPanel = ({ cities, isLoading, onSelectCity }) => {
   const [isLocating, setIsLocating] = useState(false);
   const [statusMessage, setStatusMessage] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
+  const [isMapActivated, setIsMapActivated] = useState(!mapboxToken);
+  const activationRecordedRef = useRef(false);
   const clusterGroupRef = useRef(null);
   const trackedCount = useMemo(() => cities.filter((city) => city.isTracked).length, [cities]);
+  const hasMapboxBudgeting = Boolean(mapboxToken);
+  const { canUseMap, registerLoad, remaining, reason, hasSaveDataEnabled, maxMonthlyLoads } = useMapboxGuardrail({
+    isEnabled: hasMapboxBudgeting,
+  });
+  const shouldRenderMap = !hasMapboxBudgeting ? !isLoading : isMapActivated && canUseMap && !isLoading;
+
+  useEffect(() => {
+    if (shouldRenderMap && !activationRecordedRef.current) {
+      registerLoad();
+      activationRecordedRef.current = true;
+    }
+  }, [registerLoad, shouldRenderMap]);
+
+  useEffect(() => {
+    if (!isMapActivated) {
+      activationRecordedRef.current = false;
+    }
+  }, [isMapActivated]);
+
+  useEffect(() => {
+    if (!shouldRenderMap) {
+      setMapInstance(null);
+      clusterGroupRef.current = null;
+    }
+  }, [shouldRenderMap]);
+
+  const topCriticalCities = useMemo(
+    () =>
+      [...cities]
+        .sort((a, b) => b.aqi - a.aqi)
+        .slice(0, 6)
+        .map((city) => ({
+          id: city.id,
+          name: city.name,
+          aqi: city.aqi,
+          dominantPollutant: city.dominantPollutant,
+          updatedAt: city.updatedAt,
+        })),
+    [cities],
+  );
 
   const markers = useMemo(
     () =>
@@ -174,7 +217,7 @@ export const MapViewPanel = ({ cities, isLoading, onSelectCity }) => {
   }, [focusMap, userLocation]);
 
   useEffect(() => {
-    if (!mapInstance || isLoading) {
+    if (!mapInstance || isLoading || !shouldRenderMap) {
       return undefined;
     }
 
@@ -253,7 +296,7 @@ export const MapViewPanel = ({ cities, isLoading, onSelectCity }) => {
     return () => {
       clusterGroup.clearLayers();
     };
-  }, [isLoading, mapInstance, markers, onSelectCity]);
+  }, [isLoading, mapInstance, markers, onSelectCity, shouldRenderMap]);
 
   useEffect(() => () => {
     if (mapInstance && clusterGroupRef.current) {
@@ -262,16 +305,62 @@ export const MapViewPanel = ({ cities, isLoading, onSelectCity }) => {
     }
   }, [mapInstance]);
 
+  const renderMapPreview = () => {
+    const guardrailMessage = (() => {
+      if (!hasMapboxBudgeting) {
+        return null;
+      }
+      if (reason === 'quota-exceeded') {
+        return 'Interactive map paused: Mapbox monthly allocation reached. It will reset automatically next month.';
+      }
+      if (reason === 'save-data') {
+        return 'Data saver mode is on, so the interactive map is disabled to avoid heavy tile requests.';
+      }
+      return 'Interactive map loads only when needed so we stay inside Mapbox’s free tier. Enable it whenever you need the spatial view.';
+    })();
+
+    return (
+      <div className="relative h-[28rem] rounded-3xl border border-white/60 bg-gradient-to-br from-slate-50/80 via-white/90 to-slate-100 shadow-sm">
+        <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 p-6 text-center text-slate-600">
+          <div className="max-w-lg space-y-2">
+            <p className="text-lg font-semibold text-slate-700">Interactive map on-demand</p>
+            {guardrailMessage && <p>{guardrailMessage}</p>}
+            {hasMapboxBudgeting && Number.isFinite(remaining) && (
+              <p className="text-xs uppercase tracking-wide text-slate-500">Monthly budget remaining: {remaining} / {maxMonthlyLoads}</p>
+            )}
+          </div>
+          <div className="flex flex-wrap items-center justify-center gap-3">
+            <button
+              type="button"
+              onClick={() => setIsMapActivated(true)}
+              disabled={!canUseMap}
+              className="inline-flex items-center gap-2 rounded-full bg-user-primary px-5 py-2 text-sm font-semibold text-white shadow-lg transition hover:bg-user-primary/90 disabled:cursor-not-allowed disabled:bg-slate-400"
+            >
+              Enable interactive map
+            </button>
+            {hasMapboxBudgeting && reason === 'save-data' && (
+              <span className="text-xs text-slate-500">Disable data saver in your browser to enable the map.</span>
+            )}
+            {hasMapboxBudgeting && reason === 'quota-exceeded' && (
+              <span className="text-xs text-slate-500">We will fall back to the static overview until the next billing cycle.</span>
+            )}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   const mapSection = isLoading ? (
     <Skeleton className="h-[28rem] rounded-3xl overflow-hidden border border-white/60" shimmer={false}>
       Loading map
     </Skeleton>
-  ) : (
+  ) : shouldRenderMap ? (
     <div className="relative h-[28rem] rounded-3xl overflow-hidden border border-white/60 shadow-lg" aria-busy={isLoading} aria-live="polite">
       <MapContainer
         center={defaultCenter}
         zoom={5}
-        scrollWheelZoom
+        scrollWheelZoom={false}
+        doubleClickZoom={false}
         className="h-full w-full"
         whenCreated={(map) => {
           if (!mapInstance) {
@@ -296,17 +385,57 @@ export const MapViewPanel = ({ cities, isLoading, onSelectCity }) => {
         )}
       </MapContainer>
 
-      <div className="pointer-events-none absolute inset-0 flex items-start justify-end p-4">
-        <button
-          type="button"
-          onClick={handleLocate}
-          className="pointer-events-auto inline-flex items-center gap-2 rounded-full bg-white/90 px-4 py-2 text-sm font-semibold text-slate-700 shadow-lg transition hover:bg-white"
-          disabled={isLocating}
-        >
-          <span className="inline-flex h-2 w-2 rounded-full bg-user-primary" aria-hidden />
-          {isLocating ? 'Locating…' : 'Locate me'}
-        </button>
+      <div className="pointer-events-none absolute inset-0 flex flex-col justify-between p-4">
+        {hasMapboxBudgeting && (
+          <div className="pointer-events-auto self-end">
+            <button
+              type="button"
+              onClick={() => setIsMapActivated(false)}
+              className="inline-flex items-center gap-2 rounded-full bg-white/80 px-4 py-1.5 text-xs font-semibold text-slate-600 shadow-sm transition hover:bg-white"
+            >
+              Disable map
+            </button>
+          </div>
+        )}
+
+        <div className="pointer-events-auto self-end">
+          <button
+            type="button"
+            onClick={handleLocate}
+            className="inline-flex items-center gap-2 rounded-full bg-white/90 px-4 py-2 text-sm font-semibold text-slate-700 shadow-lg transition hover:bg-white disabled:cursor-not-allowed"
+            disabled={isLocating}
+          >
+            <span className="inline-flex h-2 w-2 rounded-full bg-user-primary" aria-hidden />
+            {isLocating ? 'Locating…' : 'Locate me'}
+          </button>
+        </div>
       </div>
+    </div>
+  ) : (
+    renderMapPreview()
+  );
+
+  const staticOverview = (
+    <div className="rounded-3xl border border-slate-100 bg-white/80 p-5 shadow-sm">
+      <p className="text-sm font-semibold text-slate-700">Air quality snapshot</p>
+      <p className="mt-1 text-xs text-slate-500">Top hotspots based on the latest measurements.</p>
+      <ul className="mt-3 grid gap-2 md:grid-cols-2">
+        {topCriticalCities.map((city) => (
+          <li key={city.id ?? city.name} className="rounded-2xl border border-slate-200/70 bg-white/70 p-3 text-sm text-slate-700 shadow-sm">
+            <div className="flex items-center justify-between gap-2">
+              <span className="font-semibold text-slate-800">{city.name}</span>
+              <span className="text-xs font-semibold text-slate-500">AQI {city.aqi}</span>
+            </div>
+            <p className="mt-1 text-xs text-slate-500">Dominant pollutant: {city.dominantPollutant ?? '—'}</p>
+            {city.updatedAt && (
+              <p className="mt-1 text-[11px] text-slate-400">Updated {new Date(city.updatedAt).toLocaleString()}</p>
+            )}
+          </li>
+        ))}
+      </ul>
+      {topCriticalCities.length === 0 && (
+        <p className="text-xs text-slate-500">No live air quality data available yet. Upload measurements or track cities to populate this snapshot.</p>
+      )}
     </div>
   );
 
@@ -338,6 +467,18 @@ export const MapViewPanel = ({ cities, isLoading, onSelectCity }) => {
             Catalog cities
           </span>
         </div>
+      )}
+
+      {hasMapboxBudgeting && shouldRenderMap && (
+        <p className="text-[11px] text-slate-400">Scroll zoom is disabled to prevent accidental tile refreshes. Use the map controls or pinch gestures to zoom.</p>
+      )}
+
+      {!shouldRenderMap && !isLoading && staticOverview}
+
+      {hasMapboxBudgeting && !isLoading && isMapActivated && (
+        <p className="text-xs text-slate-500">
+          Mapbox loads remaining this month: {remaining} / {maxMonthlyLoads}
+        </p>
       )}
     </div>
   );

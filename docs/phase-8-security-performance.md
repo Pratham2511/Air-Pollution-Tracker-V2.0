@@ -1,6 +1,6 @@
 # Phase 8 • Security & Performance Blueprint
 
-_Last updated: 2025-10-10 (Phase 8 completion pass)_
+_Last updated: 2025-10-30 (Phase 8 completion pass)_
 
 This document outlines the actionable plan for the Phase 8 upgrades, covering security hardening and bundle performance.
 
@@ -15,7 +15,7 @@ This document outlines the actionable plan for the Phase 8 upgrades, covering se
 - [x] Ship `securityService` module for audit logging + privileged action confirmation.
 - [x] Configure service-role edge functions for scheduled ingestion + reporting (stub endpoints).
 - [x] Establish incident logging channel (Supabase table + hooks in government incident desk actions).
-- [ ] Harden file upload validation once CSV import wizard lands (Phase 4/5 dependency).
+- [x] Harden file upload validation once CSV import wizard lands (Phase 4/5 dependency).
 
 ## Performance Backlog
 - [x] Route-level code splitting via `React.lazy` and suspense fallback.
@@ -32,10 +32,12 @@ This document outlines the actionable plan for the Phase 8 upgrades, covering se
 - Supabase edge function stubs (`aq_ingestion`, `report_dispatch`) enforce service token header and stand ready for orchestration logic.
 - `npm run analyze` leverages `source-map-explorer` for bundle budget enforcement (< 300 KB gz main chunk).
 - Forecast fallback generation now runs inside `cityAnalysisWorker` with `analysisWorkerClient` handling timeouts and graceful degradation.
+- Measurement ingestion wizard now rejects oversize or non-CSV uploads, caps row counts, and flags binary control characters before persisting.
+- Government map view now lazy-loads Mapbox tiles, enforces a client-side monthly budget well below the free tier, respects browser data saver mode, and falls back to a static hotspot snapshot when the allocation is exhausted.
 
 ## Next Up
-1. Harden CSV upload validation flow (blocked on Phase 5 import wizard).
-2. Integrate real ingestion/reporting logic into the edge function stubs.
-3. Stand up admin audit dashboard powered by `incident_activity` and `audit_logs` tables.
-4. Extend bundle budgeting into CI (fail build when `npm run analyze` exceeds 300 KB gzipped main chunk).
-5. Expand worker coverage to multi-city overview computations if Supabase latency spikes.
+1. Integrate real ingestion/reporting logic into the edge function stubs.
+2. Stand up admin audit dashboard powered by `incident_activity` and `audit_logs` tables.
+3. Extend bundle budgeting into CI (fail build when `npm run analyze` exceeds 300 KB gzipped main chunk).
+4. Expand worker coverage to multi-city overview computations if Supabase latency spikes.
+5. Add alerting to surface Mapbox budget exhaustion events inside the ops dashboard.
