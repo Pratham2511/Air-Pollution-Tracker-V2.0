@@ -38,6 +38,19 @@ export const ProtectedRoute = ({ children, allowedRoles = [] }) => {
   }, [allowedRoles, loading, profile?.role, user, location.pathname]);
 
   useEffect(() => {
+    if (process.env.NODE_ENV !== 'production') {
+      // eslint-disable-next-line no-console
+      console.debug('[ProtectedRoute] outcome', {
+        path: location.pathname,
+        status: accessOutcome.status,
+        role: accessOutcome.role ?? null,
+        isDemo: accessOutcome.isDemo ?? false,
+        loading,
+        hasUser: Boolean(user),
+        hasProfile: Boolean(profile),
+      });
+    }
+
     if (accessOutcome.status === 'pending') {
       return;
     }
@@ -63,7 +76,7 @@ export const ProtectedRoute = ({ children, allowedRoles = [] }) => {
     } else {
       logAccessDenied({ ...payload, reason: accessOutcome.reason });
     }
-  }, [accessOutcome, location.pathname, location.search, user?.id]);
+  }, [accessOutcome, location.pathname, location.search, loading, profile, user]);
 
   if (accessOutcome.status === 'pending') {
     return (

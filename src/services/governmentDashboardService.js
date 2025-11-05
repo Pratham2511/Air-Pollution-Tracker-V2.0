@@ -8,6 +8,7 @@ const GOV_NOTES_TABLE = 'gov_notes';
 const INCIDENT_STORAGE_KEY = 'aqt::gov-incidents@v1';
 const INCIDENT_ACTIVITY_STORAGE_KEY = 'aqt::incident-activity@v1';
 const UPLOAD_STORAGE_KEY = 'aqt::gov-uploads@v1';
+const REPORT_SUBSCRIPTION_STORAGE_KEY = 'aqt::gov-report-subscriptions@v1';
 
 const statusFromAqi = (aqi) => {
   if (aqi >= 300) return 'Hazard';
@@ -165,6 +166,97 @@ const generateHotspotFallback = (limit = 10) => {
   return decorateHotspotMetrics(ranked);
 };
 
+const POLICY_STATUS_CHOICES = ['monitoring', 'improving', 'watch', 'escalate'];
+
+const generatePolicyInsightsFallback = ({ cityId, window = '7d', limit = 4 } = {}) => {
+  const now = Date.now();
+  const baseCities = cityId && CITY_CATALOG_BY_ID[cityId]
+    ? [CITY_CATALOG_BY_ID[cityId]]
+    : [...CITY_CATALOG].sort((a, b) => b.aqi - a.aqi).slice(0, Math.max(limit, 4));
+
+  return baseCities.slice(0, limit).map((city, index) => {
+    const seed = seededRandom((now / ((index + 1) * 3.7)) + window.length);
+    const impactScore = Number((seed * 40 + 20).toFixed(1));
+    const confidence = Number((0.55 + seed * 0.4).toFixed(2));
+    const status = POLICY_STATUS_CHOICES[Math.floor(seed * POLICY_STATUS_CHOICES.length)] ?? 'monitoring';
+    const effectiveFrom = new Date(now - index * 3 * 24 * 60 * 60 * 1000).toISOString();
+    const effectiveTo = new Date(now + (index + 1) * 2 * 24 * 60 * 60 * 1000).toISOString();
+
+    return {
+      id: `${city.id}-${window}-${index}`,
+      cityId: city.id,
+      cityName: `${city.name}, ${city.country}`,
+      window,
+      title: `${city.name} emission control program`,
+      summary: `Observed ${impactScore}% exposure shift after ${window} policy window. Confidence ${Math.round(confidence * 100)}%.`,
+      status,
+      impactScore,
+      confidence,
+      effectiveFrom,
+      effectiveTo,
+      metadata: {
+        jurisdiction: city.region,
+      },
+    };
+  });
+};
+
+const generateReportSubscriptionsFallback = () => {
+  const now = new Date();
+  return [
+    {
+      id: 'daily-digest',
+      name: 'Daily AQI Digest',
+      cadence: '07:00 IST',
+      audience: '35 recipients',
+      status: 'active',
+      lastRunAt: new Date(now.getTime() - 2 * 60 * 60 * 1000).toISOString(),
+      lastStatus: 'delivered',
+    },
+    {
+      id: 'weekly-brief',
+      name: 'Weekly Policy Brief',
+      cadence: 'Mondays 09:00 IST',
+      audience: '12 recipients',
+      status: 'queued',
+      lastRunAt: new Date(now.getTime() - 5 * 24 * 60 * 60 * 1000).toISOString(),
+      lastStatus: 'no_audience',
+    },
+    {
+      id: 'incident-escalation',
+      name: 'Incident Escalation',
+      cadence: 'Triggers when AQI > 350 for 30 mins',
+      audience: 'Ops & Command',
+      status: 'critical',
+      lastRunAt: new Date(now.getTime() - 30 * 60 * 1000).toISOString(),
+      lastStatus: 'delivered',
+    },
+  ];
+};
+
+const generateReportDispatchFallback = () => {
+  const base = generateReportSubscriptionsFallback();
+  const now = Date.now();
+  return base.map((subscription, index) => ({
+    id: `dispatch-${subscription.id}`,
+    subscriptionId: subscription.id,
+    status: subscription.lastStatus ?? 'delivered',
+    createdAt: subscription.lastRunAt ?? new Date(now - index * 3600 * 1000).toISOString(),
+    deliveredAt: subscription.lastStatus === 'delivered'
+      ? subscription.lastRunAt ?? new Date(now - index * 3600 * 1000).toISOString()
+      : null,
+    errorMessage: subscription.lastStatus === 'failed' ? 'Temporary delivery issue' : null,
+    audience: subscription.audience ?? null,
+    summary: {
+      subscription: {
+        id: subscription.id,
+        name: subscription.name,
+        cadence: subscription.cadence,
+      },
+    },
+  }));
+};
+
 const readIncidentCache = () => {
   try {
     const stored = window.localStorage.getItem(INCIDENT_STORAGE_KEY);
@@ -211,6 +303,23 @@ const readUploadCache = () => {
 const writeUploadCache = (uploads) => {
   try {
     window.localStorage.setItem(UPLOAD_STORAGE_KEY, JSON.stringify(uploads));
+  } catch (error) {
+    // noop
+  }
+};
+
+const readReportSubscriptionCache = () => {
+  try {
+    const stored = window.localStorage.getItem(REPORT_SUBSCRIPTION_STORAGE_KEY);
+    return stored ? JSON.parse(stored) : [];
+  } catch (error) {
+    return [];
+  }
+};
+
+const writeReportSubscriptionCache = (subscriptions) => {
+  try {
+    window.localStorage.setItem(REPORT_SUBSCRIPTION_STORAGE_KEY, JSON.stringify(subscriptions));
   } catch (error) {
     // noop
   }
@@ -377,6 +486,177 @@ export const fetchHotspotAlerts = async ({ limit = 10 } = {}) => withFallback(
   },
   generateHotspotFallback(limit)
 );
+
+  export const fetchPolicyImpacts = async ({ cityId, window = '7d', limit = 6 } = {}) => withFallback(
+    async () => {
+      if (!hasSupabaseCredentials) {
+        return { data: generatePolicyInsightsFallback({ cityId, window, limit }) };
+      }
+
+      let query = supabase
+        .from('gov_policy_impacts')
+        .select('id, city_id, window, title, summary, status, impact_score, confidence, effective_from, effective_to, metadata')
+        .order('effective_from', { ascending: false })
+        .limit(limit);
+
+      if (cityId) {
+        query = query.eq('city_id', cityId);
+      }
+      if (window) {
+        query = query.eq('window', window);
+      }
+
+      const { data, error } = await query;
+      if (error) {
+        return { error: error.message };
+      }
+
+      return {
+        data: (data ?? []).map((row) => {
+          const catalogCity = CITY_CATALOG_BY_ID[row.city_id];
+          return {
+            id: row.id,
+            cityId: row.city_id,
+            cityName: row.metadata?.city_name ?? catalogCity ? `${catalogCity.name}, ${catalogCity.country}` : row.city_id,
+            window: row.window,
+            title: row.title,
+            summary: row.summary,
+            status: row.status,
+            impactScore: typeof row.impact_score === 'number' ? Number(row.impact_score) : null,
+            confidence: typeof row.confidence === 'number' ? Number(row.confidence) : null,
+            effectiveFrom: row.effective_from,
+            effectiveTo: row.effective_to,
+            metadata: row.metadata ?? {},
+          };
+        }),
+      };
+    },
+    generatePolicyInsightsFallback({ cityId, window, limit })
+  );
+
+  export const fetchReportSubscriptions = async ({ limit = 10 } = {}) => withFallback(
+    async () => {
+      if (!hasSupabaseCredentials) {
+        const cached = readReportSubscriptionCache();
+        if (cached.length) {
+          return { data: cached.slice(0, limit) };
+        }
+        const fallback = generateReportSubscriptionsFallback();
+        writeReportSubscriptionCache(fallback);
+        return { data: fallback.slice(0, limit) };
+      }
+
+      const { data, error } = await supabase
+        .from('gov_report_subscriptions')
+        .select('id, name, cadence, audience, status, last_run_at')
+        .order('created_at', { ascending: true })
+        .limit(limit);
+
+      if (error) {
+        return { error: error.message };
+      }
+
+      return {
+        data: (data ?? []).map((row) => ({
+          id: row.id,
+          name: row.name,
+          cadence: row.cadence,
+          audience: row.audience,
+          status: row.status,
+          lastRunAt: row.last_run_at,
+        })),
+      };
+    },
+    generateReportSubscriptionsFallback().slice(0, limit)
+  );
+
+  export const fetchReportDispatchLog = async ({ limit = 20 } = {}) => withFallback(
+    async () => {
+      if (!hasSupabaseCredentials) {
+        return { data: generateReportDispatchFallback().slice(0, limit) };
+      }
+
+      const { data, error } = await supabase
+        .from('gov_report_dispatch_log')
+        .select('id, subscription_id, status, created_at, delivered_at, error_message, audience, summary')
+        .order('created_at', { ascending: false })
+        .limit(limit);
+
+      if (error) {
+        return { error: error.message };
+      }
+
+      return {
+        data: (data ?? []).map((row) => ({
+          id: row.id,
+          subscriptionId: row.subscription_id,
+          status: row.status,
+          createdAt: row.created_at,
+          deliveredAt: row.delivered_at,
+          errorMessage: row.error_message,
+          audience: row.audience,
+          summary: row.summary ?? {},
+        })),
+      };
+    },
+    generateReportDispatchFallback().slice(0, limit)
+  );
+
+export const createReportSubscription = async ({
+  name,
+  cadence,
+  audience,
+  deliveryChannel,
+  status = 'queued',
+}) => {
+  const payload = {
+    id: (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function')
+      ? crypto.randomUUID()
+      : `subscription-${Date.now()}`,
+    name,
+    cadence,
+    audience,
+    status,
+    deliveryChannel,
+    lastRunAt: null,
+    createdAt: new Date().toISOString(),
+  };
+
+  if (!hasSupabaseCredentials) {
+    const cached = readReportSubscriptionCache();
+    const updated = [payload, ...cached];
+    writeReportSubscriptionCache(updated);
+    return { data: payload, error: null };
+  }
+
+  const { data, error } = await supabase
+    .from('gov_report_subscriptions')
+    .insert({
+      name,
+      cadence,
+      audience,
+      status,
+      delivery_channel: deliveryChannel,
+    })
+    .select('id, name, cadence, audience, status, last_run_at')
+    .single();
+
+  if (error) {
+    return { data: null, error: error.message };
+  }
+
+  return {
+    data: {
+      id: data.id,
+      name: data.name,
+      cadence: data.cadence,
+      audience: data.audience,
+      status: data.status,
+      lastRunAt: data.last_run_at,
+    },
+    error: null,
+  };
+};
 
 export const fetchIncidents = async () => withFallback(
   async () => {

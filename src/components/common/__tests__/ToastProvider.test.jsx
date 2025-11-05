@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitForElementToBeRemoved } from '@testing-library/react';
 import { ToastProvider, useToast } from '../ToastProvider';
 
 const TestHarness = () => {
@@ -32,12 +32,10 @@ describe('ToastProvider', () => {
   });
 
   it('auto dismisses toast after duration', async () => {
-    jest.useFakeTimers();
-
     const AutoDismissHarness = () => {
       const { addToast } = useToast();
       return (
-        <button type="button" onClick={() => addToast({ title: 'Auto dismiss', duration: 500 })}>
+        <button type="button" onClick={() => addToast({ title: 'Auto dismiss', duration: 50 })}>
           Trigger
         </button>
       );
@@ -52,10 +50,10 @@ describe('ToastProvider', () => {
     fireEvent.click(screen.getByRole('button', { name: /trigger/i }));
     expect(screen.getByText('Auto dismiss')).toBeInTheDocument();
 
-    act(() => {
-      jest.advanceTimersByTime(600);
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 100));
     });
 
-    await waitFor(() => expect(screen.queryByText('Auto dismiss')).not.toBeInTheDocument());
+    await waitForElementToBeRemoved(() => screen.queryByText('Auto dismiss'));
   });
 });

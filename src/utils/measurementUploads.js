@@ -2,6 +2,10 @@ import { CITY_CATALOG_BY_ID } from '../data/cityCatalog';
 
 export const REQUIRED_UPLOAD_COLUMNS = ['city_id', 'aqi', 'pollutant', 'timestamp'];
 
+export const ACCEPTED_UPLOAD_TYPES = ['text/csv', 'application/vnd.ms-excel', 'text/plain'];
+export const MAX_UPLOAD_SIZE_BYTES = 2 * 1024 * 1024; // 2 MB ceiling to protect memory
+export const MAX_UPLOAD_ROWS = 5000; // guardrail for operational imports
+
 export const ISSUE_LABELS = {
   missing_city: 'Missing city ID',
   unknown_city: 'Unknown city',
@@ -22,6 +26,10 @@ export const sanitizeNumber = (value) => {
 };
 
 export const isValidAqi = (aqi) => Number.isFinite(aqi) && aqi >= 0 && aqi <= 500;
+
+const looksLikeCsvFilename = (name) => typeof name === 'string' && name.toLowerCase().endsWith('.csv');
+
+const containsUnsupportedControlCharacters = (text) => /[\u0000-\u0008\u000B\u000C\u000E-\u001F]/.test(text);
 
 const buildIssuesTally = (rejectedRows) => rejectedRows.reduce((accumulator, row) => {
   row.reasons.forEach((reason) => {
@@ -91,12 +99,18 @@ export const analyzeUploadRecords = (records) => {
   };
 };
 
-export const parseCsvContent = (content) => {
+export const parseCsvContent = (content, { maxRows = MAX_UPLOAD_ROWS } = {}) => {
   if (!content || !content.trim()) {
     throw new Error('The uploaded CSV is empty.');
   }
 
-  const lines = content
+  const sanitized = content.replace(/^\uFEFF/, '');
+
+  if (containsUnsupportedControlCharacters(sanitized)) {
+    throw new Error('Upload contains unsupported control characters. Provide UTF-8 CSV content.');
+  }
+
+  const lines = sanitized
     .split(/\r?\n/)
     .map((line) => line.trim())
     .filter((line) => line.length > 0);
@@ -106,6 +120,12 @@ export const parseCsvContent = (content) => {
   }
 
   const headerLine = lines.shift();
+  const dataRowCount = lines.length;
+
+  if (dataRowCount > maxRows) {
+    throw new Error(`Upload limit exceeded. Provide at most ${maxRows} data rows per file.`);
+  }
+
   const headers = headerLine.split(',').map((value) => value.trim().toLowerCase());
   const missingColumns = REQUIRED_UPLOAD_COLUMNS.filter((column) => !headers.includes(column));
 
@@ -132,20 +152,36 @@ export const parseCsvContent = (content) => {
   return analyzeUploadRecords(records);
 };
 
-export const analyzeUploadPayload = async ({ file, records }) => {
+export const analyzeUploadPayload = async ({ file, records }, {
+  maxBytes = MAX_UPLOAD_SIZE_BYTES,
+  maxRows = MAX_UPLOAD_ROWS,
+  acceptedTypes = ACCEPTED_UPLOAD_TYPES,
+} = {}) => {
   if (file && records) {
     throw new Error('Provide either a CSV file or a records array, not both.');
   }
 
   if (file) {
+    if (file.size != null && file.size > maxBytes) {
+      throw new Error(`Upload exceeds the maximum allowed size of ${(maxBytes / (1024 * 1024)).toFixed(1)} MB.`);
+    }
+    if (file.type && !acceptedTypes.includes(file.type)) {
+      throw new Error('Unsupported file type. Please upload a CSV file.');
+    }
+    if (!looksLikeCsvFilename(file.name ?? '')) {
+      throw new Error('Unsupported file extension. Please upload a .csv file.');
+    }
     if (typeof file.text !== 'function') {
       throw new Error('Unsupported file source.');
     }
     const content = await file.text();
-    return parseCsvContent(content);
+    return parseCsvContent(content, { maxRows });
   }
 
   if (Array.isArray(records)) {
+    if (records.length > maxRows) {
+      throw new Error(`Upload limit exceeded. Provide at most ${maxRows} records per submission.`);
+    }
     return analyzeUploadRecords(records);
   }
 

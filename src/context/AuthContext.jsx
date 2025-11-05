@@ -1,4 +1,12 @@
-import { createContext, useContext, useEffect, useMemo, useState } from 'react';
+import {
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from 'react';
 import PropTypes from 'prop-types';
 import { supabase, hasSupabaseCredentials } from '../services/supabaseClient';
 
@@ -7,6 +15,7 @@ const AuthContext = createContext({
   profile: null,
   loading: true,
   error: null,
+  refreshProfile: async () => {},
 });
 
 export const AuthProvider = ({ children }) => {
@@ -16,77 +25,120 @@ export const AuthProvider = ({ children }) => {
     loading: true,
     error: null,
   });
+  const isMountedRef = useRef(true);
 
-  useEffect(() => {
-    let isMounted = true;
+  useEffect(() => () => {
+    isMountedRef.current = false;
+  }, []);
 
+  const refreshProfile = useCallback(async () => {
     if (!hasSupabaseCredentials) {
+      if (!isMountedRef.current) {
+        return;
+      }
       setState({ user: null, profile: null, loading: false, error: null });
-      return () => {};
+      return;
     }
 
-    const loadSession = async () => {
+    if (!isMountedRef.current) {
+      return;
+    }
+
+    setState((prev) => ({ ...prev, loading: true, error: null }));
+
+    try {
       const {
         data: { session },
         error,
       } = await supabase.auth.getSession();
-      if (!isMounted) return;
+
+      if (!isMountedRef.current) {
+        return;
+      }
 
       if (error) {
+        if (process.env.NODE_ENV !== 'production') {
+          // eslint-disable-next-line no-console
+          console.warn('[AuthContext] getSession failed', error);
+        }
         setState((prev) => ({ ...prev, loading: false, error }));
         return;
       }
 
       const user = session?.user ?? null;
-      setState((prev) => ({ ...prev, user, loading: false }));
-
-      if (user) {
-        const { data: profile, error: profileError } = await supabase
-          .from('profiles')
-          .select('*')
-          .eq('id', user.id)
-          .maybeSingle();
-
-        if (!isMounted) return;
-
-        setState({
-          user,
-          profile: profile ?? null,
-          loading: false,
-          error: profileError ?? null,
-        });
-      }
-    };
-
-  loadSession();
-
-    const { data: listener } = supabase.auth.onAuthStateChange((event, session) => {
-      const user = session?.user ?? null;
-      if (event === 'SIGNED_OUT') {
+      if (!user) {
+        if (process.env.NODE_ENV !== 'production') {
+          // eslint-disable-next-line no-console
+          console.debug('[AuthContext] no active session');
+        }
         setState({ user: null, profile: null, loading: false, error: null });
         return;
       }
 
-      if (user) {
-        setState((prev) => ({ ...prev, user, loading: false }));
-        (async () => {
-          const { data: profile } = await supabase
-            .from('profiles')
-            .select('*')
-            .eq('id', user.id)
-            .maybeSingle();
-          setState({ user, profile: profile ?? null, loading: false, error: null });
-        })();
+      // Allow guarded routes to continue using session metadata immediately.
+      setState((prev) => ({
+        ...prev,
+        user,
+        loading: false,
+        error: null,
+      }));
+
+      const { data: profile, error: profileError } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('id', user.id)
+        .maybeSingle();
+
+      if (!isMountedRef.current) {
+        return;
       }
+
+      if (process.env.NODE_ENV !== 'production') {
+        // eslint-disable-next-line no-console
+        console.debug('[AuthContext] profile resolved', {
+          userId: user.id,
+          role: user.user_metadata?.role ?? profile?.role ?? null,
+          profileLoaded: Boolean(profile),
+          profileError,
+        });
+      }
+
+      setState((prev) => ({
+        ...prev,
+        user,
+        profile: profile ?? prev.profile,
+        error: profileError ?? prev.error,
+      }));
+    } catch (error) {
+      if (!isMountedRef.current) {
+        return;
+      }
+      if (process.env.NODE_ENV !== 'production') {
+        // eslint-disable-next-line no-console
+        console.error('[AuthContext] refreshProfile error', error);
+      }
+      setState({ user: null, profile: null, loading: false, error });
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!hasSupabaseCredentials) {
+      setState({ user: null, profile: null, loading: false, error: null });
+      return () => {};
+    }
+
+    refreshProfile();
+
+    const { data: listener } = supabase.auth.onAuthStateChange(() => {
+      refreshProfile();
     });
 
     return () => {
-      isMounted = false;
       listener?.subscription?.unsubscribe();
     };
-  }, []);
+  }, [refreshProfile]);
 
-  const value = useMemo(() => state, [state]);
+  const value = useMemo(() => ({ ...state, refreshProfile }), [state, refreshProfile]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };

@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 
-const STORAGE_KEY = 'apt_mapbox_usage';
+export const MAPBOX_GUARDRAIL_STORAGE_KEY = 'apt_mapbox_usage';
+export const MAPBOX_GUARDRAIL_EVENT = 'mapbox-guardrail:update';
+const STORAGE_KEY = MAPBOX_GUARDRAIL_STORAGE_KEY;
 const DEFAULT_MAX_MONTHLY_LOADS = 1000; // Protect free tier (50k) with comfortable headroom.
 
 const getMonthKey = () => {
@@ -142,6 +144,24 @@ export const useMapboxGuardrail = ({
       : usage.loads >= maxMonthlyLoads
         ? 'quota-exceeded'
         : 'ok';
+
+  useEffect(() => {
+    if (!isEnabled || typeof window === 'undefined') {
+      return;
+    }
+
+    const detail = {
+      monthKey: usage.monthKey,
+      loads: usage.loads,
+      remaining,
+      reason,
+      canUseMap,
+      maxMonthlyLoads,
+      hasSaveData: usage.hasSaveData,
+    };
+
+    window.dispatchEvent(new CustomEvent(MAPBOX_GUARDRAIL_EVENT, { detail }));
+  }, [canUseMap, isEnabled, maxMonthlyLoads, reason, remaining, usage.hasSaveData, usage.loads, usage.monthKey]);
 
   return {
     canUseMap,

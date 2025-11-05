@@ -60,6 +60,27 @@ create table if not exists public.gov_heatmap_points (
 create index if not exists gov_heatmap_points_intensity_idx
   on public.gov_heatmap_points (intensity desc);
 
+create table if not exists public.gov_policy_impacts (
+  id uuid primary key default uuid_generate_v4(),
+  city_id text not null,
+  window text not null check (window in ('24h','7d','30d','90d')),
+  title text not null,
+  summary text,
+  status text not null default 'monitoring',
+  impact_score numeric,
+  confidence numeric,
+  effective_from timestamptz,
+  effective_to timestamptz,
+  metadata jsonb default '{}'::jsonb,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists gov_policy_impacts_city_idx
+  on public.gov_policy_impacts (city_id);
+
+create index if not exists gov_policy_impacts_window_idx
+  on public.gov_policy_impacts (window);
+
 -- Incident response -------------------------------------------
 
 create table if not exists public.gov_incidents (
@@ -158,6 +179,7 @@ alter table public.gov_live_metrics enable row level security;
 alter table public.gov_historical_series enable row level security;
 alter table public.gov_pollutant_breakdown enable row level security;
 alter table public.gov_heatmap_points enable row level security;
+alter table public.gov_policy_impacts enable row level security;
 alter table public.gov_incidents enable row level security;
 alter table public.gov_notes enable row level security;
 alter table public.gov_measurement_uploads enable row level security;
@@ -180,6 +202,10 @@ create policy if not exists gov_pollutant_breakdown_read
 
 create policy if not exists gov_heatmap_points_read
   on public.gov_heatmap_points for select
+  using (auth.role() in ('authenticated','service_role'));
+
+create policy if not exists gov_policy_impacts_read
+  on public.gov_policy_impacts for select
   using (auth.role() in ('authenticated','service_role'));
 
 create policy if not exists gov_notes_read
@@ -229,6 +255,14 @@ create policy if not exists gov_heatmap_points_write
 
 create policy if not exists gov_heatmap_points_update
   on public.gov_heatmap_points for update
+  using (auth.role() = 'service_role');
+
+create policy if not exists gov_policy_impacts_write
+  on public.gov_policy_impacts for insert
+  with check (auth.role() = 'service_role');
+
+create policy if not exists gov_policy_impacts_update
+  on public.gov_policy_impacts for update
   using (auth.role() = 'service_role');
 
 create policy if not exists gov_incidents_manage

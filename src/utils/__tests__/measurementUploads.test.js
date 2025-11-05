@@ -1,4 +1,7 @@
 import {
+  ACCEPTED_UPLOAD_TYPES,
+  MAX_UPLOAD_ROWS,
+  MAX_UPLOAD_SIZE_BYTES,
   analyzeUploadPayload,
   analyzeUploadRecords,
   buildSummaryMessage,
@@ -73,11 +76,14 @@ describe('measurement upload utilities', () => {
     });
 
     expect(summary).toContain('Processed 3 rows');
-  expect(summary).toContain('Invalid AQI');
+    expect(summary).toContain('Invalid AQI');
   });
 
   it('analyzes file payloads via text() method', async () => {
     const file = {
+      name: 'ingestion.csv',
+      type: ACCEPTED_UPLOAD_TYPES[0],
+      size: 512,
       text: jest.fn().mockResolvedValue(
         buildCsv([
           {
@@ -109,5 +115,47 @@ describe('measurement upload utilities', () => {
   it('throws when CSV is missing required columns', () => {
     const badCsv = ['city_id,aqi,timestamp', 'delhi,120,2025-10-10T10:00:00Z'].join('\n');
     expect(() => parseCsvContent(badCsv)).toThrow('Upload CSV missing required columns');
+  });
+
+  it('rejects files that exceed the maximum byte size', async () => {
+    const file = {
+      name: 'oversize.csv',
+      type: ACCEPTED_UPLOAD_TYPES[0],
+      size: MAX_UPLOAD_SIZE_BYTES + 1,
+      text: jest.fn(),
+    };
+
+    await expect(analyzeUploadPayload({ file })).rejects.toThrow('Upload exceeds the maximum allowed size');
+    expect(file.text).not.toHaveBeenCalled();
+  });
+
+  it('rejects files with non-csv extensions', async () => {
+    const file = {
+      name: 'measurements.txt',
+      type: ACCEPTED_UPLOAD_TYPES[0],
+      size: 512,
+      text: jest.fn(),
+    };
+
+    await expect(analyzeUploadPayload({ file })).rejects.toThrow('Unsupported file extension');
+    expect(file.text).not.toHaveBeenCalled();
+  });
+
+  it('rejects CSV content that exceeds the row ceiling', () => {
+    const rows = Array.from({ length: MAX_UPLOAD_ROWS + 1 }).map(() => ({
+      city_id: 'delhi',
+      aqi: '100',
+      pollutant: 'PM2.5',
+      timestamp: '2025-10-10T11:00:00Z',
+    }));
+    const csv = buildCsv(rows);
+
+    expect(() => parseCsvContent(csv)).toThrow('Upload limit exceeded');
+  });
+
+  it('rejects CSV payloads containing binary control characters', () => {
+    const csv = `city_id,aqi,pollutant,timestamp\n\u0000,100,PM2.5,2025-10-10T11:00:00Z`;
+
+    expect(() => parseCsvContent(csv)).toThrow('Upload contains unsupported control characters');
   });
 });

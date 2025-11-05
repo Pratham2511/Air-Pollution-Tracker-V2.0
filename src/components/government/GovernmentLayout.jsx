@@ -37,6 +37,7 @@ export const GovernmentLayout = ({
 	badge = "Verified Government Access",
 	title,
 	description,
+	headerActions,
 	children,
 }) => (
 	<div className="min-h-screen bg-gradient-to-br from-gov-muted via-white to-gov-muted py-16">
@@ -92,14 +93,19 @@ export const GovernmentLayout = ({
 
 			<main id="main-content" tabIndex="-1" className="flex-1 space-y-6">
 				<header className="glass-panel p-10">
-					<span className="inline-flex items-center gap-2 text-sm font-medium uppercase tracking-[0.35em] text-gov-accent">
-						<span className="block h-2 w-2 rounded-full bg-gov-accent animate-pulse" />
-						{badge}
-					</span>
-					<h1 className="mt-4 text-3xl font-semibold text-gov-primary">
-						{title}
-					</h1>
-					<p className="mt-4 max-w-2xl text-slate-600">{description}</p>
+					<div className="flex flex-col gap-6 lg:flex-row lg:items-start lg:justify-between">
+						<div>
+							<span className="inline-flex items-center gap-2 text-sm font-medium uppercase tracking-[0.35em] text-gov-accent">
+								<span className="block h-2 w-2 rounded-full bg-gov-accent animate-pulse" />
+								{badge}
+							</span>
+							<h1 className="mt-4 text-3xl font-semibold text-gov-primary">
+								{title}
+							</h1>
+							<p className="mt-4 max-w-2xl text-slate-600">{description}</p>
+						</div>
+						{headerActions}
+					</div>
 				</header>
 
 				{children}
@@ -112,5 +118,10 @@ GovernmentLayout.propTypes = {
 	badge: PropTypes.string,
 	title: PropTypes.string.isRequired,
 	description: PropTypes.string.isRequired,
+	headerActions: PropTypes.node,
 	children: PropTypes.node,
+};
+
+GovernmentLayout.defaultProps = {
+	headerActions: null,
 };

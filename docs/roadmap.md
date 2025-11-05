@@ -151,7 +151,7 @@ create table public.otp_requests (
 6. **Export & Reporting**
    - CSV/JSON download (client-side initially).
    - PDF via headless chrome service (stretch).
-   - ✅ Reporting options and schedule placeholders implemented.
+   - ✅ Reporting options wired to live Supabase data with scheduled report automation surfacing run history and delivery status.
 7. **Government Notes**
    - `gov_notes` table with AQI snapshot metadata.
 8. **Hotspot Detection**
@@ -159,7 +159,8 @@ create table public.otp_requests (
 9. **Incident Management**
    - CRUD operations with severity levels and timeline view.
 10. **Policy Impact Analytics**
-    - Pre/post policy comparison using saved snapshots.
+   - ✅ Policy insight feed wired to Supabase (`gov_policy_impacts`) with fallback generators.
+   - Pre/post policy comparison using saved snapshots.
 11. **Data Upload Interface**
     - CSV import wizard, Supabase storage pipeline, validation summary.
 

@@ -20,7 +20,7 @@ const initialSignInForm = {
   password: '',
 };
 
-const GOVERNMENT_ROLES = [
+export const GOVERNMENT_ROLES = [
   { value: 'environment-analyst', label: 'Environment Analyst' },
   { value: 'district-commissioner', label: 'District Commissioner' },
   { value: 'emergency-ops', label: 'Emergency Ops Lead' },

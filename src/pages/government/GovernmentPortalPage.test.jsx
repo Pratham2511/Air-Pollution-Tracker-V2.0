@@ -34,6 +34,7 @@ describe("GovernmentPortalPage", () => {
       expect(within(nav).getAllByRole('link')).toHaveLength(6);
 
       expect(screen.getByRole('heading', { level: 2, name: /Live AQI Situation Room/i })).toBeInTheDocument();
+  expect(screen.getByRole('heading', { level: 2, name: /Operational Telemetry & Alerts/i })).toBeInTheDocument();
       expect(screen.getByRole('heading', { level: 2, name: /Historical Trend Analysis/i })).toBeInTheDocument();
       expect(screen.getByRole('heading', { level: 2, name: /Pollutant Intelligence Desk/i })).toBeInTheDocument();
       expect(screen.getByRole('heading', { level: 2, name: /Heatmap Visualization/i })).toBeInTheDocument();

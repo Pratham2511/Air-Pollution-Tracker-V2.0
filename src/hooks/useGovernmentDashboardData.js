@@ -5,6 +5,8 @@ import {
   buildJson,
   createIncident,
   deleteIncident,
+  createReportSubscription,
+  fetchPolicyImpacts,
   fetchGovernmentNotes,
   fetchHeatmapPoints,
   fetchHistoricalSeries,
@@ -14,6 +16,8 @@ import {
   fetchLiveMetrics,
   fetchPollutantBreakdown,
   fetchMeasurementUploads,
+  fetchReportSubscriptions,
+  fetchReportDispatchLog,
   GOVERNMENT_DEFAULT_CITY,
   subscribeToLiveMetrics,
   triggerDownload,
@@ -24,11 +28,44 @@ import { logSecurityIncident, logAccessGranted } from '../services/securityServi
 import { recordIncidentEvent } from '../services/incidentLogService';
 import { useAuth } from '../context/AuthContext';
 import { analyzeUploadPayload } from '../utils/measurementUploads';
+import { MAPBOX_GUARDRAIL_EVENT, MAPBOX_GUARDRAIL_STORAGE_KEY } from './useMapboxGuardrail';
 
 const DEFAULT_FILTERS = {
   search: '',
   pollutant: 'all',
   status: 'all',
+};
+
+const getGuardrailMonthKey = () => {
+  const now = new Date();
+  const month = String(now.getUTCMonth() + 1).padStart(2, '0');
+  return `${now.getUTCFullYear()}-${month}`;
+};
+
+const readGuardrailSnapshot = () => {
+  if (typeof window === 'undefined') {
+    return null;
+  }
+
+  try {
+    const stored = window.localStorage.getItem(MAPBOX_GUARDRAIL_STORAGE_KEY);
+    if (!stored) {
+      return null;
+    }
+    const parsed = JSON.parse(stored);
+    const monthKey = getGuardrailMonthKey();
+    const loads = Number.isFinite(parsed?.[monthKey]) ? Number(parsed[monthKey]) : 0;
+    return {
+      monthKey,
+      loads,
+      remaining: null,
+      reason: 'unknown',
+      maxMonthlyLoads: null,
+      canUseMap: true,
+    };
+  } catch (error) {
+    return null;
+  }
 };
 
 const buildHighlights = (series, window) => {
@@ -74,6 +111,7 @@ export const useGovernmentDashboardData = () => {
   const [isRecordingUpload, setIsRecordingUpload] = useState(false);
   const [uploadError, setUploadError] = useState(null);
   const [lastUploadSummary, setLastUploadSummary] = useState(null);
+  const [mapboxGuardrail, setMapboxGuardrail] = useState(() => readGuardrailSnapshot());
 
   const liveMetricsKey = useMemo(
     () => ['gov-live-metrics', filters.search ?? '', filters.pollutant ?? 'all', filters.status ?? 'all'],
@@ -87,6 +125,12 @@ export const useGovernmentDashboardData = () => {
   const hotspotsKey = useMemo(() => ['gov-hotspots'], []);
   const notesKey = useMemo(() => ['gov-notes'], []);
   const uploadsKey = useMemo(() => ['gov-measurement-uploads'], []);
+  const reportSubscriptionsKey = useMemo(() => ['gov-report-subscriptions'], []);
+  const reportDispatchKey = useMemo(() => ['gov-report-dispatch-log'], []);
+  const policyInsightsKey = useMemo(
+    () => ['gov-policy-impacts', selectedCity, selectedWindow],
+    [selectedCity, selectedWindow],
+  );
 
   const liveMetricsQuery = useQuery({
     queryKey: liveMetricsKey,
@@ -233,6 +277,82 @@ export const useGovernmentDashboardData = () => {
     refetchOnWindowFocus: false,
   });
 
+  const policyInsightsQuery = useQuery({
+    queryKey: policyInsightsKey,
+    queryFn: async () => {
+      const { data, error } = await fetchPolicyImpacts({ cityId: selectedCity, window: selectedWindow });
+      if (error) {
+        const err = new Error(error);
+        err.fallbackData = data ?? [];
+        throw err;
+      }
+      return data ?? [];
+    },
+    staleTime: 5 * 60 * 1000,
+    gcTime: 15 * 60 * 1000,
+    refetchOnWindowFocus: false,
+  });
+
+  useEffect(() => {
+    if (typeof window === 'undefined') {
+      return undefined;
+    }
+
+    const handleUpdate = (event) => {
+      const detail = event?.detail ?? {};
+      setMapboxGuardrail((previous) => ({
+        monthKey: detail.monthKey ?? previous?.monthKey ?? getGuardrailMonthKey(),
+        loads: Number.isFinite(detail.loads) ? detail.loads : Number.isFinite(previous?.loads) ? previous.loads : 0,
+        remaining: typeof detail.remaining === 'number' ? detail.remaining : previous?.remaining ?? null,
+        reason: detail.reason ?? previous?.reason ?? 'unknown',
+        maxMonthlyLoads: typeof detail.maxMonthlyLoads === 'number' ? detail.maxMonthlyLoads : previous?.maxMonthlyLoads ?? null,
+        canUseMap: typeof detail.canUseMap === 'boolean' ? detail.canUseMap : previous?.canUseMap ?? true,
+      }));
+    };
+
+    const snapshot = readGuardrailSnapshot();
+    if (snapshot) {
+      setMapboxGuardrail(snapshot);
+    }
+
+    window.addEventListener(MAPBOX_GUARDRAIL_EVENT, handleUpdate);
+    return () => {
+      window.removeEventListener(MAPBOX_GUARDRAIL_EVENT, handleUpdate);
+    };
+  }, []);
+
+  const reportSubscriptionsQuery = useQuery({
+    queryKey: reportSubscriptionsKey,
+    queryFn: async () => {
+      const { data, error } = await fetchReportSubscriptions({ limit: 20 });
+      if (error) {
+        const err = new Error(error);
+        err.fallbackData = data ?? [];
+        throw err;
+      }
+      return data ?? [];
+    },
+    staleTime: 5 * 60 * 1000,
+    gcTime: 15 * 60 * 1000,
+    refetchOnWindowFocus: false,
+  });
+
+  const reportDispatchLogQuery = useQuery({
+    queryKey: reportDispatchKey,
+    queryFn: async () => {
+      const { data, error } = await fetchReportDispatchLog({ limit: 40 });
+      if (error) {
+        const err = new Error(error);
+        err.fallbackData = data ?? [];
+        throw err;
+      }
+      return data ?? [];
+    },
+    staleTime: 5 * 60 * 1000,
+    gcTime: 20 * 60 * 1000,
+    refetchOnWindowFocus: false,
+  });
+
   const liveMetrics = useMemo(
     () => liveMetricsQuery.data ?? liveMetricsQuery.error?.fallbackData ?? [],
     [liveMetricsQuery.data, liveMetricsQuery.error],
@@ -277,6 +397,111 @@ export const useGovernmentDashboardData = () => {
     () => uploadsQuery.data ?? uploadsQuery.error?.fallbackData ?? [],
     [uploadsQuery.data, uploadsQuery.error],
   );
+  const policyInsights = useMemo(
+    () => policyInsightsQuery.data ?? policyInsightsQuery.error?.fallbackData ?? [],
+    [policyInsightsQuery.data, policyInsightsQuery.error],
+  );
+  const reportSubscriptions = useMemo(
+    () => reportSubscriptionsQuery.data ?? reportSubscriptionsQuery.error?.fallbackData ?? [],
+    [reportSubscriptionsQuery.data, reportSubscriptionsQuery.error],
+  );
+  const reportDispatchLog = useMemo(
+    () => reportDispatchLogQuery.data ?? reportDispatchLogQuery.error?.fallbackData ?? [],
+    [reportDispatchLogQuery.data, reportDispatchLogQuery.error],
+  );
+
+  const dispatchBySubscription = useMemo(() => reportDispatchLog.reduce((acc, entry) => {
+    const key = entry.subscriptionId ?? entry.summary?.subscription?.id;
+    if (!key) {
+      return acc;
+    }
+    const current = acc[key];
+    if (!current || new Date(entry.createdAt ?? 0).getTime() > new Date(current.createdAt ?? 0).getTime()) {
+      acc[key] = entry;
+    }
+    return acc;
+  }, {}), [reportDispatchLog]);
+
+  const scheduledReports = useMemo(() => {
+    const base = reportSubscriptions.length
+      ? reportSubscriptions
+      : reportDispatchLog.map((entry) => ({
+        id: entry.subscriptionId ?? entry.id,
+        name: entry.summary?.subscription?.name ?? 'Automated Dispatch',
+        cadence: entry.summary?.subscription?.cadence ?? 'Scheduled',
+        audience: entry.audience ?? 'Unassigned',
+        status: entry.status ?? 'queued',
+        lastRunAt: entry.createdAt ?? null,
+        lastStatus: entry.status ?? null,
+      }));
+
+    return base.map((subscription) => {
+      const latest = dispatchBySubscription[subscription.id];
+      return {
+        ...subscription,
+        lastRunAt: subscription.lastRunAt ?? latest?.createdAt ?? null,
+        lastStatus: subscription.lastStatus ?? latest?.status ?? subscription.status,
+        lastDeliveredAt: latest?.deliveredAt ?? null,
+        lastError: latest?.errorMessage ?? null,
+      };
+    });
+  }, [dispatchBySubscription, reportDispatchLog, reportSubscriptions]);
+
+  const systemAlerts = useMemo(() => {
+    const alerts = [];
+
+    const appendError = (query, id, message) => {
+      if (query?.error) {
+        alerts.push({
+          id,
+          level: 'warning',
+          message,
+          detail: query.error.message ?? null,
+        });
+      }
+    };
+
+    appendError(liveMetricsQuery, 'live-metrics-error', 'Live monitoring data is temporarily falling back to cached values.');
+    appendError(historicalQuery, 'historical-error', 'Historical trend series failed to refresh from Supabase. Showing last known data.');
+    appendError(heatmapQuery, 'heatmap-error', 'Heatmap layer did not load from Supabase storage.');
+    appendError(reportSubscriptionsQuery, 'report-subscriptions-error', 'Unable to load scheduled report subscriptions.');
+    appendError(reportDispatchLogQuery, 'report-dispatch-error', 'Dispatch log failed to sync; recent deliveries may be missing.');
+
+    if (mapboxGuardrail) {
+      const maxLoads = typeof mapboxGuardrail.maxMonthlyLoads === 'number' && mapboxGuardrail.maxMonthlyLoads > 0
+        ? mapboxGuardrail.maxMonthlyLoads
+        : 1000;
+      const remainingLoads = typeof mapboxGuardrail.remaining === 'number'
+        ? mapboxGuardrail.remaining
+        : null;
+      const usedLoads = remainingLoads != null ? Math.max(0, maxLoads - remainingLoads) : mapboxGuardrail.loads ?? 0;
+
+      if (mapboxGuardrail.reason === 'quota-exceeded') {
+        alerts.push({
+          id: 'mapbox-quota-exceeded',
+          level: 'critical',
+          message: 'Mapbox interactive map is paused: monthly free-tier allocation exhausted. Static overview will remain active until the next reset.',
+          detail: `Loads used this cycle: ${usedLoads} / ${maxLoads}.`,
+        });
+      } else if (mapboxGuardrail.reason === 'save-data') {
+        alerts.push({
+          id: 'mapbox-save-data',
+          level: 'info',
+          message: 'Browser data-saver mode is disabling Mapbox tiles for some operators.',
+          detail: 'Ask users to disable data-saving to re-enable the interactive map.',
+        });
+      } else if (remainingLoads != null && remainingLoads <= Math.max(20, Math.ceil(maxLoads * 0.1))) {
+        alerts.push({
+          id: 'mapbox-budget-low',
+          level: 'warning',
+          message: 'Mapbox free-tier budget is running low.',
+          detail: `Loads used: ${usedLoads} / ${maxLoads}. Remaining: ${remainingLoads}.`,
+        });
+      }
+    }
+
+    return alerts;
+  }, [heatmapQuery, historicalQuery, liveMetricsQuery, mapboxGuardrail, reportDispatchLogQuery, reportSubscriptionsQuery]);
 
   useEffect(() => {
     if (liveMetricsQuery.dataUpdatedAt) {
@@ -389,6 +614,38 @@ export const useGovernmentDashboardData = () => {
       queryClient.invalidateQueries({ queryKey: incidentActivityKey });
     },
   });
+
+  const createReportSubscriptionMutation = useMutation({
+    mutationFn: async (payload) => {
+      const { data, error } = await createReportSubscription(payload);
+      if (error) {
+        throw new Error(error);
+      }
+      return data;
+    },
+    onSuccess: (data) => {
+      if (!data) {
+        return;
+      }
+      queryClient.setQueryData(reportSubscriptionsKey, (previous = []) => {
+        const filtered = previous.filter((item) => item.id !== data.id);
+        return [data, ...filtered];
+      });
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: reportSubscriptionsKey });
+      queryClient.invalidateQueries({ queryKey: reportDispatchKey });
+    },
+  });
+
+  const scheduleReport = useCallback(async (payload) => {
+    const result = await createReportSubscriptionMutation.mutateAsync(payload);
+    return result ?? null;
+  }, [createReportSubscriptionMutation]);
+
+  const resetScheduleReportError = useCallback(() => {
+    createReportSubscriptionMutation.reset();
+  }, [createReportSubscriptionMutation]);
 
   const createNewIncident = useCallback(async (payload) => {
     const now = new Date().toISOString();
@@ -608,33 +865,6 @@ export const useGovernmentDashboardData = () => {
     ];
   }, [liveMetrics, pollutantBreakdown]);
 
-  const scheduledReports = useMemo(
-    () => [
-      {
-        id: 'daily-digest',
-        name: 'Daily AQI Digest',
-        cadence: '07:00 IST',
-        audience: '35 recipients',
-        status: 'active',
-      },
-      {
-        id: 'weekly-brief',
-        name: 'Weekly Policy Brief',
-        cadence: 'Mondays 09:00 IST',
-        audience: '12 recipients',
-        status: 'queued',
-      },
-      {
-        id: 'incident-escalation',
-        name: 'Incident Escalation',
-        cadence: 'Triggers when AQI > 350 for 30 mins',
-        audience: 'Ops & Command',
-        status: 'critical',
-      },
-    ],
-    [],
-  );
-
   const combinedError = liveMetricsQuery.error
     ?? historicalQuery.error
     ?? pollutantBreakdownQuery.error
@@ -644,6 +874,9 @@ export const useGovernmentDashboardData = () => {
     ?? incidentActivityQuery.error
     ?? notesQuery.error
     ?? uploadsQuery.error
+    ?? policyInsightsQuery.error
+    ?? reportSubscriptionsQuery.error
+    ?? reportDispatchLogQuery.error
     ?? null;
 
   const isLoading =
@@ -655,12 +888,18 @@ export const useGovernmentDashboardData = () => {
     || hotspotAlertsQuery.isPending
     || incidentActivityQuery.isPending
     || notesQuery.isPending
-    || uploadsQuery.isPending;
+    || uploadsQuery.isPending
+    || policyInsightsQuery.isPending
+    || reportSubscriptionsQuery.isPending
+    || reportDispatchLogQuery.isPending;
 
   const refresh = useCallback(() => {
     queryClient.invalidateQueries({ queryKey: liveMetricsKey });
     queryClient.invalidateQueries({ queryKey: hotspotsKey });
-  }, [hotspotsKey, liveMetricsKey, queryClient]);
+    queryClient.invalidateQueries({ queryKey: policyInsightsKey });
+    queryClient.invalidateQueries({ queryKey: reportSubscriptionsKey });
+    queryClient.invalidateQueries({ queryKey: reportDispatchKey });
+  }, [hotspotsKey, liveMetricsKey, policyInsightsKey, queryClient, reportDispatchKey, reportSubscriptionsKey]);
 
   const selectWindow = useCallback((window) => {
     setSelectedWindow(window);
@@ -682,7 +921,7 @@ export const useGovernmentDashboardData = () => {
     historicalHighlights,
     pollutantBreakdown: pollutantCharts,
     heatmapPoints,
-  hotspotAlerts,
+    hotspotAlerts,
     incidents,
     incidentActivity,
     incidentActivityByIncident,
@@ -691,8 +930,16 @@ export const useGovernmentDashboardData = () => {
     lastUploadSummary,
     uploadError,
     intelligenceCards,
+    policyInsights,
     scheduledReports,
+    reportDispatchLog,
+    systemAlerts,
+    mapboxGuardrail,
     reportFormat,
+    scheduleReport,
+    isSchedulingReport: createReportSubscriptionMutation.isPending,
+    scheduleReportError: createReportSubscriptionMutation.error?.message ?? null,
+    resetScheduleReportError,
     setFilters: (updates) => setFilterState((prev) => ({ ...prev, ...updates })),
     refresh,
     selectWindow,

@@ -4,6 +4,7 @@ import {
   validateCitizenRegistration,
   validateGovernmentRegistration,
   isFormValid,
+  isGovernmentEmailAllowed,
 } from '../utils/validation';
 
 const CITIZEN_ROLE = 'citizen';
@@ -282,15 +283,21 @@ export const signInWithPassword = async ({ email, password, redirectTo }) => {
       details: { email: safeLower(email), destination },
     });
   } else {
+    const normalized = (error.message ?? '').toLowerCase();
+    let message = error.message ?? 'unknown';
+    if (normalized.includes('rate limit')) {
+      message = 'Too many login attempts. Please wait a moment before trying again.';
+    }
     await logAccessDenied({
       route: 'auth/password-signin',
       userId: null,
       role: null,
-      reason: error.message ?? 'unknown',
+      reason: message,
       details: { email: safeLower(email) },
     });
+    return { data, error: message };
   }
-  return { data, error: error?.message ?? null };
+  return { data, error: null };
 };
 
 export const signOut = async () => {
@@ -306,4 +313,92 @@ export const signOut = async () => {
     await logAccessGranted({ route: 'auth/signout', userId: null, role: null });
   }
   return { error: error?.message ?? null };
+};
+
+export const updateGovernmentProfile = async ({
+  userId,
+  fullName,
+  department,
+  jurisdiction,
+  governmentRole,
+}) => {
+  if (!userId) {
+    throw new Error('Missing user context for profile update.');
+  }
+
+  const payload = {
+    full_name: fullName?.trim() ?? null,
+    department: department?.trim() ?? null,
+    jurisdiction: jurisdiction?.trim() ?? null,
+    government_role: governmentRole ?? null,
+  };
+
+  if (!payload.full_name || payload.full_name.length < 4) {
+    throw new Error('Official name should be at least 4 characters.');
+  }
+  if (!payload.department || payload.department.length < 2) {
+    throw new Error('Department is required.');
+  }
+  if (!payload.jurisdiction || payload.jurisdiction.length < 2) {
+    throw new Error('Jurisdiction is required.');
+  }
+  if (!payload.government_role) {
+    throw new Error('Role selection is required.');
+  }
+
+  const { data, error } = await supabase
+    .from('profiles')
+    .update(payload)
+    .eq('id', userId)
+    .select()
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(error.message ?? 'Failed to update profile.');
+  }
+
+  await logAccessGranted({
+    route: 'auth/profile-update',
+    userId,
+    role: 'government',
+    details: {
+      department: payload.department,
+      jurisdiction: payload.jurisdiction,
+      government_role: payload.government_role,
+    },
+  });
+
+  return { data };
+};
+
+export const updateGovernmentEmail = async ({ email }) => {
+  if (!email) {
+    throw new Error('Email is required.');
+  }
+
+  if (!isGovernmentEmailAllowed(email)) {
+    throw new Error('Government accounts require verified .gov domains.');
+  }
+
+  const { data, error } = await supabase.auth.updateUser({ email });
+  if (error) {
+    throw new Error(error.message ?? 'Failed to update email.');
+  }
+
+  const userId = data?.user?.id ?? null;
+  if (userId) {
+    await supabase
+      .from('profiles')
+      .update({ government_verified: false })
+      .eq('id', userId);
+
+    await logAccessGranted({
+      route: 'auth/email-update',
+      userId,
+      role: 'government',
+      details: { email: safeLower(email) },
+    });
+  }
+
+  return { data };
 };

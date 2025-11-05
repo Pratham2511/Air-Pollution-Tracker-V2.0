@@ -119,11 +119,46 @@ export const HistoricalTrendsPanel = ({
           <h3 className="text-lg font-semibold text-slate-700">Policy Impact Watchlist</h3>
           <ul className="mt-4 space-y-4 text-sm text-slate-600">
             {(policyInsights?.length ? policyInsights : [
-              { id: 'baseline', title: 'Monitoring in progress', description: 'Connect policy annotations to surface changes to populate this panel.' },
-            ]).map((item) => (
-              <li key={item.id ?? item.title} className="rounded-2xl bg-slate-100/60 p-4">
-                <p className="font-semibold text-slate-700">{item.title}</p>
-                <p className="mt-1 text-xs text-slate-500">{item.description}</p>
+                {
+                  id: 'baseline',
+                  title: 'Monitoring in progress',
+                  summary: 'Connect policy annotations to surface changes to populate this panel.',
+                },
+              ]).map((item) => (
+                  <li key={item.id ?? item.title} className="rounded-2xl bg-slate-100/70 p-4">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <p className="font-semibold text-slate-700">{item.title}</p>
+                        {item.cityName && (
+                          <p className="text-xs uppercase tracking-[0.28em] text-slate-400">{item.cityName}</p>
+                        )}
+                      </div>
+                      {item.status && (
+                        <span className="rounded-full bg-white px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.25em] text-gov-primary">
+                          {item.status}
+                        </span>
+                      )}
+                    </div>
+                    <p className="mt-2 text-xs text-slate-500">{item.summary ?? item.description ?? 'Impact details pending ingestion.'}</p>
+                    {(item.impactScore != null || item.confidence != null || item.effectiveFrom) && (
+                      <div className="mt-3 flex flex-wrap gap-2 text-[11px] font-semibold uppercase tracking-[0.22em] text-slate-500">
+                        {item.impactScore != null && (
+                          <span className="inline-flex items-center gap-2 rounded-full bg-white px-3 py-1 text-slate-600">
+                            Impact {Number(item.impactScore).toFixed(1)}%
+                          </span>
+                        )}
+                        {item.confidence != null && (
+                          <span className="inline-flex items-center gap-2 rounded-full bg-white px-3 py-1 text-slate-600">
+                            Confidence {Math.round(Number(item.confidence) * 100)}%
+                          </span>
+                        )}
+                        {item.effectiveFrom && (
+                          <span className="inline-flex items-center gap-2 rounded-full bg-white px-3 py-1 text-slate-600">
+                            Since {new Date(item.effectiveFrom).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                          </span>
+                        )}
+                      </div>
+                    )}
               </li>
             ))}
           </ul>
@@ -162,7 +197,15 @@ HistoricalTrendsPanel.propTypes = {
     PropTypes.shape({
       id: PropTypes.string,
       title: PropTypes.string,
+      summary: PropTypes.string,
       description: PropTypes.string,
+      status: PropTypes.string,
+      cityName: PropTypes.string,
+      impactScore: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
+      confidence: PropTypes.oneOfType([PropTypes.string, PropTypes.number]),
+      effectiveFrom: PropTypes.string,
+      effectiveTo: PropTypes.string,
+      metadata: PropTypes.object,
     }),
   ),
 };
