@@ -95,6 +95,8 @@ npm install
 npm start
 ```
 
+> **Note:** The project includes an `.npmrc` setting `legacy-peer-deps=true` so installs succeed with React 19 and `react-window@1.8.10`. Vercel and local environments use the same setting automatically.
+
 The development server runs at <http://localhost:3000>. Hot reload is enabled and lint errors appear in
 the console.
 
