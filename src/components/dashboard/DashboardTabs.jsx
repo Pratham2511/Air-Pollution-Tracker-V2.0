@@ -24,7 +24,7 @@ export const DashboardTabs = ({ tabs, activeTab, onTabChange, panelIdPrefix }) =
 
   return (
     <div
-      className="flex flex-wrap gap-2 rounded-full border border-white/60 bg-white/70 p-1 shadow-sm backdrop-blur"
+      className="flex w-full flex-wrap items-center gap-2 rounded-full border border-white/60 bg-white/70 p-1 shadow-sm backdrop-blur sm:flex-nowrap"
       role="tablist"
       aria-label="Dashboard sections"
     >
@@ -39,7 +39,7 @@ export const DashboardTabs = ({ tabs, activeTab, onTabChange, panelIdPrefix }) =
             type="button"
             onClick={() => onTabChange(tab.id)}
             onKeyDown={(event) => handleKeyDown(event, index)}
-            className="group relative overflow-hidden rounded-full px-5 py-2 text-sm font-semibold transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-slate-900/50 sm:text-base"
+            className="group relative inline-flex min-w-[8rem] flex-1 items-center justify-center overflow-hidden rounded-full px-5 py-2 text-sm font-semibold text-center transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-slate-900/50 sm:text-base"
             role="tab"
             aria-selected={isActive}
             aria-controls={panelId}

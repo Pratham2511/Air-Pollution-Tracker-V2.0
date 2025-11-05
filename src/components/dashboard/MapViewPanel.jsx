@@ -5,7 +5,6 @@ import PropTypes from 'prop-types';
 import { getAqiLevel } from '../../utils/aqi';
 import { Skeleton } from '../common';
 import { resolveUserLocation } from '../../services/geolocationService';
-import useMapboxGuardrail from '../../hooks/useMapboxGuardrail';
 
 import 'leaflet/dist/leaflet.css';
 import 'leaflet.markercluster/dist/MarkerCluster.css';
@@ -95,41 +94,15 @@ const clusterIcon = (count, maxAqi, color, label) =>
     iconAnchor: [26, 26],
   });
 
-export const MapViewPanel = ({ cities, isLoading, onSelectCity }) => {
+export const MapViewPanel = ({ cities, isLoading, onSelectCity, onToggleTracking }) => {
   const [mapInstance, setMapInstance] = useState(null);
   const [userLocation, setUserLocation] = useState(null);
   const [isLocating, setIsLocating] = useState(false);
   const [statusMessage, setStatusMessage] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
-  const [isMapActivated, setIsMapActivated] = useState(!mapboxToken);
-  const activationRecordedRef = useRef(false);
   const clusterGroupRef = useRef(null);
+  const persistedViewRef = useRef({ center: defaultCenter, zoom: 5 });
   const trackedCount = useMemo(() => cities.filter((city) => city.isTracked).length, [cities]);
-  const hasMapboxBudgeting = Boolean(mapboxToken);
-  const { canUseMap, registerLoad, remaining, reason, maxMonthlyLoads } = useMapboxGuardrail({
-    isEnabled: hasMapboxBudgeting,
-  });
-  const shouldRenderMap = !hasMapboxBudgeting ? !isLoading : isMapActivated && canUseMap && !isLoading;
-
-  useEffect(() => {
-    if (shouldRenderMap && !activationRecordedRef.current) {
-      registerLoad();
-      activationRecordedRef.current = true;
-    }
-  }, [registerLoad, shouldRenderMap]);
-
-  useEffect(() => {
-    if (!isMapActivated) {
-      activationRecordedRef.current = false;
-    }
-  }, [isMapActivated]);
-
-  useEffect(() => {
-    if (!shouldRenderMap) {
-      setMapInstance(null);
-      clusterGroupRef.current = null;
-    }
-  }, [shouldRenderMap]);
 
   const topCriticalCities = useMemo(
     () =>
@@ -217,7 +190,7 @@ export const MapViewPanel = ({ cities, isLoading, onSelectCity }) => {
   }, [focusMap, userLocation]);
 
   useEffect(() => {
-    if (!mapInstance || isLoading || !shouldRenderMap) {
+    if (!mapInstance || isLoading) {
       return undefined;
     }
 
@@ -243,15 +216,39 @@ export const MapViewPanel = ({ cities, isLoading, onSelectCity }) => {
         icon: marker.icon,
         metadata: { aqi: marker.aqi, color: marker.color, label: marker.levelLabel, isTracked: marker.isTracked },
       }).bindPopup(
-        `<div style="min-width:160px;font-family:'Inter',system-ui;color:#0f172a">
-          <p style="margin:0;font-weight:600">${marker.popup}</p>
-          <p style="margin-top:4px;font-size:12px;color:#64748b">Dominant: ${marker.dominantPollutant ?? '—'}</p>
+        `<div style="min-width:180px;font-family:'Inter',system-ui;color:#0f172a;display:flex;flex-direction:column;gap:6px">
+          <div>
+            <p style="margin:0;font-weight:600">${marker.popup}</p>
+            <p style="margin-top:4px;font-size:12px;color:#64748b">Dominant: ${marker.dominantPollutant ?? '—'}</p>
+          </div>
+          ${marker.isTracked
+            ? '<span style="font-size:12px;color:#16a34a;font-weight:600">On your tracking list</span>'
+            : `<button type="button" data-track="add" data-city="${marker.id}" style="display:inline-flex;align-items:center;justify-content:center;padding:6px 10px;border-radius:999px;background:#0f172a;color:#fff;font-size:12px;font-weight:600;border:none;cursor:pointer;">Add to tracking</button>`}
         </div>`,
       );
 
       if (onSelectCity) {
         leafletMarker.on('click', () => {
           onSelectCity(marker.id);
+        });
+      }
+
+      if (onToggleTracking && !marker.isTracked) {
+        leafletMarker.on('popupopen', () => {
+          const popupElement = leafletMarker.getPopup()?.getElement();
+          if (!popupElement) {
+            return;
+          }
+          const trackButton = popupElement.querySelector('[data-track="add"]');
+          if (!trackButton) {
+            return;
+          }
+          const handleClick = (event) => {
+            event.preventDefault();
+            onToggleTracking(marker.id, marker.isTracked);
+            leafletMarker.closePopup();
+          };
+          trackButton.addEventListener('click', handleClick, { once: true });
         });
       }
 
@@ -296,76 +293,64 @@ export const MapViewPanel = ({ cities, isLoading, onSelectCity }) => {
     return () => {
       clusterGroup.clearLayers();
     };
-  }, [isLoading, mapInstance, markers, onSelectCity, shouldRenderMap]);
+  }, [isLoading, mapInstance, markers, onSelectCity, onToggleTracking]);
 
   useEffect(() => () => {
     if (mapInstance && clusterGroupRef.current) {
       mapInstance.removeLayer(clusterGroupRef.current);
       clusterGroupRef.current = null;
+      persistedViewRef.current = {
+        center: mapInstance.getCenter(),
+        zoom: mapInstance.getZoom(),
+      };
     }
   }, [mapInstance]);
 
-  const renderMapPreview = () => {
-    const guardrailMessage = (() => {
-      if (!hasMapboxBudgeting) {
-        return null;
-      }
-      if (reason === 'quota-exceeded') {
-        return 'Interactive map paused: Mapbox monthly allocation reached. It will reset automatically next month.';
-      }
-      if (reason === 'save-data') {
-        return 'Data saver mode is on, so the interactive map is disabled to avoid heavy tile requests.';
-      }
-      return 'Interactive map loads only when needed so we stay inside Mapbox’s free tier. Enable it whenever you need the spatial view.';
-    })();
+  useEffect(() => {
+    if (!mapInstance) {
+      return undefined;
+    }
 
-    return (
-      <div className="relative h-[28rem] rounded-3xl border border-white/60 bg-gradient-to-br from-slate-50/80 via-white/90 to-slate-100 shadow-sm">
-        <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 p-6 text-center text-slate-600">
-          <div className="max-w-lg space-y-2">
-            <p className="text-lg font-semibold text-slate-700">Interactive map on-demand</p>
-            {guardrailMessage && <p>{guardrailMessage}</p>}
-            {hasMapboxBudgeting && Number.isFinite(remaining) && (
-              <p className="text-xs uppercase tracking-wide text-slate-500">Monthly budget remaining: {remaining} / {maxMonthlyLoads}</p>
-            )}
-          </div>
-          <div className="flex flex-wrap items-center justify-center gap-3">
-            <button
-              type="button"
-              onClick={() => setIsMapActivated(true)}
-              disabled={!canUseMap}
-              className="inline-flex items-center gap-2 rounded-full bg-user-primary px-5 py-2 text-sm font-semibold text-white shadow-lg transition hover:bg-user-primary/90 disabled:cursor-not-allowed disabled:bg-slate-400"
-            >
-              Enable interactive map
-            </button>
-            {hasMapboxBudgeting && reason === 'save-data' && (
-              <span className="text-xs text-slate-500">Disable data saver in your browser to enable the map.</span>
-            )}
-            {hasMapboxBudgeting && reason === 'quota-exceeded' && (
-              <span className="text-xs text-slate-500">We will fall back to the static overview until the next billing cycle.</span>
-            )}
-          </div>
-        </div>
-      </div>
-    );
-  };
+    const persistView = () => {
+      persistedViewRef.current = {
+        center: mapInstance.getCenter(),
+        zoom: mapInstance.getZoom(),
+      };
+    };
+
+    mapInstance.on('moveend', persistView);
+    mapInstance.on('zoomend', persistView);
+
+    return () => {
+      mapInstance.off('moveend', persistView);
+      mapInstance.off('zoomend', persistView);
+    };
+  }, [mapInstance]);
 
   const mapSection = isLoading ? (
     <Skeleton className="h-[28rem] rounded-3xl overflow-hidden border border-white/60" shimmer={false}>
       Loading map
     </Skeleton>
-  ) : shouldRenderMap ? (
+  ) : (
     <div className="relative h-[28rem] rounded-3xl overflow-hidden border border-white/60 shadow-lg" aria-busy={isLoading} aria-live="polite">
       <MapContainer
         center={defaultCenter}
         zoom={5}
-        scrollWheelZoom={false}
-        doubleClickZoom={false}
+        scrollWheelZoom
+        doubleClickZoom
         className="h-full w-full"
         whenCreated={(map) => {
-          if (!mapInstance) {
-            setMapInstance(map);
+          setMapInstance(map);
+          const { center, zoom } = persistedViewRef.current ?? {};
+          if (center && zoom) {
+            map.setView(center, zoom);
           }
+        }}
+        whenReady={(map) => {
+          persistedViewRef.current = {
+            center: map.getCenter(),
+            zoom: map.getZoom(),
+          };
         }}
       >
         <TileLayer
@@ -386,18 +371,6 @@ export const MapViewPanel = ({ cities, isLoading, onSelectCity }) => {
       </MapContainer>
 
       <div className="pointer-events-none absolute inset-0 flex flex-col justify-between p-4">
-        {hasMapboxBudgeting && (
-          <div className="pointer-events-auto self-end">
-            <button
-              type="button"
-              onClick={() => setIsMapActivated(false)}
-              className="inline-flex items-center gap-2 rounded-full bg-white/80 px-4 py-1.5 text-xs font-semibold text-slate-600 shadow-sm transition hover:bg-white"
-            >
-              Disable map
-            </button>
-          </div>
-        )}
-
         <div className="pointer-events-auto self-end">
           <button
             type="button"
@@ -411,8 +384,6 @@ export const MapViewPanel = ({ cities, isLoading, onSelectCity }) => {
         </div>
       </div>
     </div>
-  ) : (
-    renderMapPreview()
   );
 
   const staticOverview = (
@@ -469,17 +440,7 @@ export const MapViewPanel = ({ cities, isLoading, onSelectCity }) => {
         </div>
       )}
 
-      {hasMapboxBudgeting && shouldRenderMap && (
-        <p className="text-[11px] text-slate-400">Scroll zoom is disabled to prevent accidental tile refreshes. Use the map controls or pinch gestures to zoom.</p>
-      )}
-
-      {!shouldRenderMap && !isLoading && staticOverview}
-
-      {hasMapboxBudgeting && !isLoading && isMapActivated && (
-        <p className="text-xs text-slate-500">
-          Mapbox loads remaining this month: {remaining} / {maxMonthlyLoads}
-        </p>
-      )}
+      {!isLoading && staticOverview}
     </div>
   );
 };
@@ -498,9 +459,11 @@ MapViewPanel.propTypes = {
   ).isRequired,
   isLoading: PropTypes.bool,
   onSelectCity: PropTypes.func,
+  onToggleTracking: PropTypes.func,
 };
 
 MapViewPanel.defaultProps = {
   isLoading: false,
   onSelectCity: undefined,
+  onToggleTracking: undefined,
 };

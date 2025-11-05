@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
 import { Link, useParams, useNavigate } from 'react-router-dom';
 import {
   LineChart,
@@ -15,6 +15,8 @@ import PropTypes from 'prop-types';
 import { SectionHeading } from '../../components/common/SectionHeading';
 import { useCityAnalysisData } from '../../hooks/useCityAnalysisData';
 import { CITY_CATALOG } from '../../data/cityCatalog';
+import { usePersistentState } from '../../hooks/usePersistentState';
+import { getInitialTrackedCities } from '../../services/dashboardService';
 
 const StatBadge = ({ label, value, variant = 'neutral' }) => {
   const variantClass = {
@@ -470,6 +472,23 @@ DominantPollutantCallout.defaultProps = {
 export const SingleCityAnalysisPage = () => {
   const navigate = useNavigate();
   const { cityId } = useParams();
+  const [trackedIdsState] = usePersistentState('aq-tracked-city-ids', getInitialTrackedCities());
+  const trackedIds = useMemo(
+    () => (Array.isArray(trackedIdsState) ? trackedIdsState : []),
+    [trackedIdsState],
+  );
+  const trackedSet = useMemo(() => new Set(trackedIds), [trackedIds]);
+  const trackedCityOptions = useMemo(
+    () => CITY_CATALOG.filter((catalogCity) => trackedSet.has(catalogCity.id)),
+    [trackedSet],
+  );
+  const fallbackTrackedCityId = trackedCityOptions[0]?.id ?? CITY_CATALOG[0]?.id ?? '';
+  const allowMultiCityOverview = trackedCityOptions.length >= 2;
+  const effectiveCityId = cityId && trackedSet.has(cityId)
+    ? cityId
+    : trackedCityOptions.length > 0
+      ? fallbackTrackedCityId
+      : cityId ?? fallbackTrackedCityId;
   const {
     analysis,
     city,
@@ -483,7 +502,22 @@ export const SingleCityAnalysisPage = () => {
     actions,
     source,
     lastFetched,
-  } = useCityAnalysisData(cityId);
+  } = useCityAnalysisData(effectiveCityId);
+
+  useEffect(() => {
+    if (!trackedCityOptions.length) {
+      return;
+    }
+
+    if (!cityId && fallbackTrackedCityId) {
+      navigate(`/analysis/${fallbackTrackedCityId}`, { replace: true });
+      return;
+    }
+
+    if (cityId && !trackedSet.has(cityId) && fallbackTrackedCityId) {
+      navigate(`/analysis/${fallbackTrackedCityId}`, { replace: true });
+    }
+  }, [cityId, fallbackTrackedCityId, navigate, trackedCityOptions.length, trackedSet]);
 
   const titleCityName = city?.name ?? cityId;
 
@@ -510,7 +544,9 @@ export const SingleCityAnalysisPage = () => {
     }
   };
 
-  const resolvedCityId = cityId ?? CITY_CATALOG[0]?.id ?? '';
+  const resolvedCityId = trackedSet.has(effectiveCityId)
+    ? effectiveCityId
+    : trackedCityOptions[0]?.id ?? '';
 
   return (
     <main id="main-content" tabIndex="-1" className="min-h-screen bg-slate-950 text-slate-50">
@@ -546,9 +582,15 @@ export const SingleCityAnalysisPage = () => {
               <select
                 value={resolvedCityId}
                 onChange={handleCityChange}
-                className="rounded-xl border border-slate-700 bg-slate-900/80 px-4 py-2 text-sm text-slate-200 focus:border-cyan-500 focus:outline-none"
+                disabled={!trackedCityOptions.length}
+                className="rounded-xl border border-slate-700 bg-slate-900/80 px-4 py-2 text-sm text-slate-200 focus:border-cyan-500 focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
               >
-                {CITY_CATALOG.map((catalogCity) => (
+                {!trackedCityOptions.length && (
+                  <option value="" disabled>
+                    Add tracked cities to compare
+                  </option>
+                )}
+                {trackedCityOptions.map((catalogCity) => (
                   <option key={catalogCity.id} value={catalogCity.id}>
                     {catalogCity.name}, {catalogCity.state}
                   </option>
@@ -577,13 +619,29 @@ export const SingleCityAnalysisPage = () => {
               Refresh Data
             </button>
             <Link
-              to="/analysis/overview"
-              className="rounded-xl border border-slate-700 px-4 py-2 text-sm font-semibold text-slate-200 transition hover:border-slate-500"
+              to={allowMultiCityOverview ? '/analysis/overview' : '#'}
+              onClick={(event) => {
+                if (!allowMultiCityOverview) {
+                  event.preventDefault();
+                }
+              }}
+              aria-disabled={!allowMultiCityOverview}
+              className={`rounded-xl border px-4 py-2 text-sm font-semibold transition ${
+                allowMultiCityOverview
+                  ? 'border-slate-700 text-slate-200 hover:border-slate-500'
+                  : 'cursor-not-allowed border-slate-700/40 text-slate-500'
+              }`}
             >
               View Multi-City Overview
             </Link>
           </div>
         </header>
+
+        {!trackedCityOptions.length && (
+          <div className="rounded-3xl border border-amber-300/40 bg-amber-50/80 p-4 text-sm text-amber-800">
+            Add at least one city to your tracking list on the dashboard to personalize this analysis view.
+          </div>
+        )}
 
         {error && (
           <div className="rounded-2xl border border-rose-500/40 bg-rose-500/10 p-4 text-sm text-rose-200">
@@ -598,88 +656,88 @@ export const SingleCityAnalysisPage = () => {
           <StatBadge label="Advisory Triggers" value={highlightMetrics.advisoryTriggers} variant="danger" />
         </section>
 
-        <section className="grid gap-6 lg:grid-cols-3">
-          <div className="lg:col-span-2">
+        <div className="grid gap-6 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+          <div className="space-y-6">
             <ForecastSection trendSeries={analysis?.trendSeries} forecast={analysis?.forecast} />
-          </div>
-          <DominantPollutantCallout pollutant={dominantPollutant} />
-        </section>
 
-        <section className="grid gap-6 lg:grid-cols-2">
-          <PollutantBreakdownChart breakdown={analysis?.pollutantBreakdown} />
-          <WeatherCorrelationTable correlations={analysis?.weatherCorrelations} />
-        </section>
+            <section className="grid gap-6 lg:grid-cols-2">
+              <PollutantBreakdownChart breakdown={analysis?.pollutantBreakdown} />
+              <WeatherCorrelationTable correlations={analysis?.weatherCorrelations} />
+            </section>
 
-        <section className="grid gap-6 lg:grid-cols-2">
-          <div className="flex flex-col gap-4">
-            <SectionHeading
-              eyebrow="health guidance"
-              title="Targeted advisories"
-              description="Recommended actions tailored to AQI severity and vulnerable populations."
-              alignment="left"
-            />
-            <div className="grid gap-4">
-              {(analysis?.healthAdvisories ?? []).map((advisory) => (
-                <AdvisoryCard key={advisory.headline} advisory={advisory} />
-              ))}
-            </div>
+            <section className="grid gap-6 lg:grid-cols-2">
+              <div className="flex flex-col gap-4">
+                <SectionHeading
+                  eyebrow="health guidance"
+                  title="Targeted advisories"
+                  description="Recommended actions tailored to AQI severity and vulnerable populations."
+                  alignment="left"
+                />
+                <div className="grid gap-4">
+                  {(analysis?.healthAdvisories ?? []).map((advisory) => (
+                    <AdvisoryCard key={advisory.headline} advisory={advisory} />
+                  ))}
+                </div>
+              </div>
+              <div className="flex flex-col gap-4">
+                <SectionHeading
+                  eyebrow="source intelligence"
+                  title="Likely contributing sources"
+                  description="Confidence-weighted hypotheses to guide field verification and mitigation."
+                  alignment="left"
+                />
+                <div className="grid gap-3">
+                  {(analysis?.sourceAttribution ?? []).map((insight) => (
+                    <SourceInsight key={insight.source} insight={insight} />
+                  ))}
+                </div>
+              </div>
+            </section>
           </div>
-          <div className="flex flex-col gap-4">
-            <SectionHeading
-              eyebrow="source intelligence"
-              title="Likely contributing sources"
-              description="Confidence-weighted hypotheses to guide field verification and mitigation."
-              alignment="left"
-            />
-            <div className="grid gap-3">
-              {(analysis?.sourceAttribution ?? []).map((insight) => (
-                <SourceInsight key={insight.source} insight={insight} />
-              ))}
-            </div>
-          </div>
-        </section>
 
-        <section className="grid gap-6 lg:grid-cols-2">
-          <ExposureMetrics exposure={analysis?.exposure} />
-          <div className="rounded-3xl border border-slate-800 bg-slate-900/50 p-6">
-            <SectionHeading
-              eyebrow="comparisons"
-              title="Period-over-period overview"
-              description="Contrast recent AQI averages versus prior windows to detect shifts early."
-              alignment="left"
-            />
-            <div className="mt-5 grid gap-4 sm:grid-cols-2">
-              <div className="rounded-2xl border border-slate-800/70 bg-slate-900/60 p-4">
-                <p className="text-xs uppercase tracking-[0.3em] text-slate-500">Current Window Avg</p>
-                <p className="mt-2 text-3xl font-semibold text-slate-100">
-                  {analysis?.comparisons?.currentAverage ?? '—'}
-                </p>
-              </div>
-              <div className="rounded-2xl border border-slate-800/70 bg-slate-900/60 p-4">
-                <p className="text-xs uppercase tracking-[0.3em] text-slate-500">Previous Window Avg</p>
-                <p className="mt-2 text-3xl font-semibold text-slate-100">
-                  {analysis?.comparisons?.previousAverage ?? '—'}
-                </p>
-              </div>
-              <div className="rounded-2xl border border-slate-800/70 bg-slate-900/60 p-4">
-                <p className="text-xs uppercase tracking-[0.3em] text-slate-500">Delta</p>
-                <p
-                  className={`mt-2 text-3xl font-semibold ${
-                    analysis?.comparisons?.delta >= 0 ? 'text-rose-200' : 'text-emerald-200'
-                  }`}
-                >
-                  {analysis?.comparisons?.delta ?? '—'}
-                </p>
-              </div>
-              <div className="rounded-2xl border border-slate-800/70 bg-slate-900/60 p-4">
-                <p className="text-xs uppercase tracking-[0.3em] text-slate-500">Direction</p>
-                <p className="mt-2 text-3xl font-semibold text-slate-100">
-                  {analysis?.comparisons?.direction ?? '—'}
-                </p>
+          <aside className="space-y-6">
+            <DominantPollutantCallout pollutant={dominantPollutant} />
+            <ExposureMetrics exposure={analysis?.exposure} />
+            <div className="rounded-3xl border border-slate-800 bg-slate-900/50 p-6">
+              <SectionHeading
+                eyebrow="comparisons"
+                title="Period-over-period overview"
+                description="Contrast recent AQI averages versus prior windows to detect shifts early."
+                alignment="left"
+              />
+              <div className="mt-5 grid gap-4 sm:grid-cols-2">
+                <div className="rounded-2xl border border-slate-800/70 bg-slate-900/60 p-4">
+                  <p className="text-xs uppercase tracking-[0.3em] text-slate-500">Current Window Avg</p>
+                  <p className="mt-2 text-3xl font-semibold text-slate-100">
+                    {analysis?.comparisons?.currentAverage ?? '—'}
+                  </p>
+                </div>
+                <div className="rounded-2xl border border-slate-800/70 bg-slate-900/60 p-4">
+                  <p className="text-xs uppercase tracking-[0.3em] text-slate-500">Previous Window Avg</p>
+                  <p className="mt-2 text-3xl font-semibold text-slate-100">
+                    {analysis?.comparisons?.previousAverage ?? '—'}
+                  </p>
+                </div>
+                <div className="rounded-2xl border border-slate-800/70 bg-slate-900/60 p-4">
+                  <p className="text-xs uppercase tracking-[0.3em] text-slate-500">Delta</p>
+                  <p
+                    className={`mt-2 text-3xl font-semibold ${
+                      analysis?.comparisons?.delta >= 0 ? 'text-rose-200' : 'text-emerald-200'
+                    }`}
+                  >
+                    {analysis?.comparisons?.delta ?? '—'}
+                  </p>
+                </div>
+                <div className="rounded-2xl border border-slate-800/70 bg-slate-900/60 p-4">
+                  <p className="text-xs uppercase tracking-[0.3em] text-slate-500">Direction</p>
+                  <p className="mt-2 text-3xl font-semibold text-slate-100">
+                    {analysis?.comparisons?.direction ?? '—'}
+                  </p>
+                </div>
               </div>
             </div>
-          </div>
-        </section>
+          </aside>
+        </div>
 
         {status === 'loading' && (
           <div className="text-center text-sm text-slate-500">Loading analysis…</div>

@@ -26,12 +26,13 @@ export const DashboardPage = () => {
     () => new Map(trackedCities.map((city) => [city.id, city])),
     [trackedCities],
   );
+  const canOpenOverview = trackedCities.length >= 2;
   const availableCityMap = useMemo(
     () => new Map(availableCities.map((city) => [city.id, city])),
     [availableCities],
   );
   const toast = useToast();
-  const lastErrorRef = useRef(null);
+  const shownErrorsRef = useRef(new Set());
 
   const handleAddCity = useCallback(
     (cityId) => {
@@ -66,18 +67,14 @@ export const DashboardPage = () => {
   );
 
   useEffect(() => {
-    if (error && error !== lastErrorRef.current) {
+    if (error && !shownErrorsRef.current.has(error)) {
       toast.addToast({
         type: 'warning',
         title: 'Showing backup data',
         description: 'We are syncing with the cloud, so cached catalog values are displayed temporarily.',
         duration: 6500,
       });
-      lastErrorRef.current = error;
-    }
-
-    if (!error && lastErrorRef.current) {
-      lastErrorRef.current = null;
+      shownErrorsRef.current.add(error);
     }
   }, [error, toast]);
 
@@ -90,6 +87,13 @@ export const DashboardPage = () => {
     },
     [navigate],
   );
+
+  const handleOpenOverview = useCallback(() => {
+    if (!canOpenOverview) {
+      return;
+    }
+    navigate('/analysis/overview');
+  }, [canOpenOverview, navigate]);
 
   const activePanel = useMemo(() => {
     switch (activeTab) {
@@ -121,6 +125,7 @@ export const DashboardPage = () => {
             cities={mapCities}
             isLoading={isLoading}
             onSelectCity={(cityId) => setSelectedCityId(cityId)}
+            onToggleTracking={handleAddCity}
           />
         );
     }
@@ -130,9 +135,12 @@ export const DashboardPage = () => {
     if (isLoading || !selectedCityId) {
       return null;
     }
-    return trackedCities.find((city) => city.id === selectedCityId)
-      ?? mapCities.find((city) => city.id === selectedCityId)
-      ?? null;
+    const trackedMatch = trackedCities.find((city) => city.id === selectedCityId);
+    if (trackedMatch) {
+      return { ...trackedMatch, isTracked: true };
+    }
+    const mapMatch = mapCities.find((city) => city.id === selectedCityId);
+    return mapMatch ? { ...mapMatch, isTracked: Boolean(mapMatch.isTracked) } : null;
   }, [isLoading, mapCities, selectedCityId, trackedCities]);
 
   const closeModal = useCallback(() => setSelectedCityId(null), []);
@@ -147,6 +155,17 @@ export const DashboardPage = () => {
     },
     [closeModal, handleOpenAnalysis],
   );
+
+  const toggleTrackedFromModal = useCallback(() => {
+    if (!selectedCity) {
+      return;
+    }
+    if (selectedCity.isTracked) {
+      handleRemoveCity(selectedCity.id);
+    } else {
+      handleAddCity(selectedCity.id);
+    }
+  }, [handleAddCity, handleRemoveCity, selectedCity]);
 
   const activePanelId = `dashboard-panel-${activeTab}`;
   const activeTabId = `dashboard-tab-${activeTab}`;
@@ -175,15 +194,21 @@ export const DashboardPage = () => {
                   Monitor 200+ cities, manage personal watchlists, and get proactive insights to protect your community from air quality risks.
                 </p>
               </div>
-              <DashboardTabs tabs={DASHBOARD_TABS} activeTab={activeTab} onTabChange={setActiveTab} panelIdPrefix="dashboard-panel" />
+              <div className="flex flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:justify-end">
+                <DashboardTabs tabs={DASHBOARD_TABS} activeTab={activeTab} onTabChange={setActiveTab} panelIdPrefix="dashboard-panel" />
+                <button
+                  type="button"
+                  onClick={handleOpenOverview}
+                  disabled={!canOpenOverview}
+                  className="inline-flex items-center justify-center rounded-full border border-slate-900/10 bg-white/90 px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-60"
+                  aria-disabled={!canOpenOverview}
+                  title={canOpenOverview ? 'Open analysis for your tracked cities' : 'Track at least two cities to unlock the overview'}
+                >
+                  Tracked city analysis
+                </button>
+              </div>
             </div>
           </motion.section>
-
-          {error && (
-            <div className="glass-panel border border-red-200/60 bg-red-50/80 p-4 text-sm text-red-700">
-              We&apos;re showing catalog data while syncing with the cloud. Details: {error}
-            </div>
-          )}
 
           <motion.section
             key={activeTab}
@@ -199,7 +224,12 @@ export const DashboardPage = () => {
           </motion.section>
         </div>
       </main>
-          <CityDetailModal city={selectedCity} onClose={closeModal} onOpenAnalysis={openAnalysisFromModal} />
+          <CityDetailModal
+            city={selectedCity}
+            onClose={closeModal}
+            onOpenAnalysis={openAnalysisFromModal}
+            onToggleTracking={toggleTrackedFromModal}
+          />
     </>
   );
 };

@@ -8,9 +8,10 @@ const DEFAULT_CITY_IDS = CITY_CATALOG.slice(0, 6).map((city) => city.id);
 
 export const useMultiCityAnalysisData = (initialCityIds = DEFAULT_CITY_IDS, options = {}) => {
   const initialWindow = normalizeAnalysisWindow(options.initialWindow ?? DEFAULT_WINDOW);
+  const allowDefault = options.allowDefault ?? true;
   const [windowKey, setWindowKey] = useState(initialWindow);
   const [selectedCityIds, setSelectedCityIds] = useState(
-    initialCityIds.length ? initialCityIds : DEFAULT_CITY_IDS,
+    initialCityIds.length ? initialCityIds : allowDefault ? DEFAULT_CITY_IDS : [],
   );
   const [status, setStatus] = useState('idle');
   const [overview, setOverview] = useState(null);
@@ -61,18 +62,21 @@ export const useMultiCityAnalysisData = (initialCityIds = DEFAULT_CITY_IDS, opti
 
   const setCities = useCallback((nextCityIds) => {
     const uniqueIds = Array.from(new Set(nextCityIds.filter((id) => CITY_CATALOG_BY_ID[id])));
-    setSelectedCityIds(uniqueIds.length ? uniqueIds : DEFAULT_CITY_IDS);
-  }, []);
+    setSelectedCityIds(uniqueIds.length ? uniqueIds : allowDefault ? DEFAULT_CITY_IDS : uniqueIds);
+  }, [allowDefault]);
 
   const toggleCity = useCallback((cityId) => {
     setSelectedCityIds((prev) => {
       if (prev.includes(cityId)) {
         const filtered = prev.filter((id) => id !== cityId);
+        if (!filtered.length && allowDefault) {
+          return prev;
+        }
         return filtered.length ? filtered : prev;
       }
       return [...prev, cityId];
     });
-  }, []);
+  }, [allowDefault]);
 
   const matrixSource = overview?.matrix;
 

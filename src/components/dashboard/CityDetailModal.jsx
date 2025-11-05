@@ -24,7 +24,7 @@ const modalContent = {
   exit: { opacity: 0, scale: 0.96, y: 20, transition: { duration: 0.2, ease: 'easeIn' } },
 };
 
-export const CityDetailModal = ({ city, onClose, onOpenAnalysis }) => {
+export const CityDetailModal = ({ city, onClose, onOpenAnalysis, onToggleTracking }) => {
   useEffect(() => {
     if (!city) {
       return undefined;
@@ -78,6 +78,17 @@ export const CityDetailModal = ({ city, onClose, onOpenAnalysis }) => {
               {city.name}{' '}
               <span className="text-slate-400 font-medium">· {city.country}</span>
             </h2>
+            <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
+              {city.isTracked ? (
+                <span className="inline-flex items-center gap-1 rounded-full border border-emerald-200 bg-emerald-50 px-3 py-1 font-semibold text-emerald-600">
+                  • On your tracking list
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1 rounded-full border border-slate-200 bg-slate-50 px-3 py-1 font-semibold text-slate-500">
+                  • Not yet tracked
+                </span>
+              )}
+            </div>
             <p id="city-modal-description" className="mt-2 text-sm text-slate-500">
               Detailed pollutant breakdown with latest AQI reading and health guidance for this location.
             </p>
@@ -146,6 +157,20 @@ export const CityDetailModal = ({ city, onClose, onOpenAnalysis }) => {
           <div className="flex flex-wrap items-center justify-end gap-3">
             <button
               type="button"
+              onClick={onToggleTracking}
+              disabled={!onToggleTracking}
+              className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
+                onToggleTracking
+                  ? city.isTracked
+                    ? 'border border-rose-200 bg-rose-50 text-rose-600 hover:bg-rose-100'
+                    : 'border border-user-primary/30 bg-user-primary/10 text-user-primary hover:bg-user-primary/20'
+                  : 'border border-slate-200 bg-slate-100 text-slate-400'
+              }`}
+            >
+              {city.isTracked ? 'Remove from tracking' : 'Add to tracking'}
+            </button>
+            <button
+              type="button"
               onClick={() => onOpenAnalysis?.(city.id)}
               disabled={!onOpenAnalysis}
               className={`rounded-full px-4 py-2 text-sm font-semibold transition ${
@@ -182,12 +207,15 @@ CityDetailModal.propTypes = {
       population: PropTypes.number,
       source: PropTypes.string,
     }),
+    isTracked: PropTypes.bool,
   }),
   onClose: PropTypes.func.isRequired,
   onOpenAnalysis: PropTypes.func,
+  onToggleTracking: PropTypes.func,
 };
 
 CityDetailModal.defaultProps = {
   city: null,
   onOpenAnalysis: undefined,
+  onToggleTracking: undefined,
 };

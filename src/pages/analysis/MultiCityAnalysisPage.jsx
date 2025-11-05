@@ -1,4 +1,4 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import PropTypes from 'prop-types';
 import {
@@ -15,6 +15,8 @@ import {
 import { SectionHeading } from '../../components/common/SectionHeading';
 import { useMultiCityAnalysisData } from '../../hooks/useMultiCityAnalysisData';
 import { CITY_CATALOG } from '../../data/cityCatalog';
+import { usePersistentState } from '../../hooks/usePersistentState';
+import { getInitialTrackedCities } from '../../services/dashboardService';
 
 const SelectedCityChip = ({ cityId, cityName, onRemove }) => (
   <button
@@ -276,6 +278,26 @@ CumulativeImpactPanel.propTypes = {
 };
 
 export const MultiCityAnalysisPage = () => {
+  const [trackedIdsState] = usePersistentState('aq-tracked-city-ids', getInitialTrackedCities());
+  const trackedIds = useMemo(
+    () => (Array.isArray(trackedIdsState) ? trackedIdsState : []),
+    [trackedIdsState],
+  );
+  const trackedSet = useMemo(() => new Set(trackedIds), [trackedIds]);
+  const trackedCatalogEntries = useMemo(
+    () => CITY_CATALOG.filter((city) => trackedSet.has(city.id)),
+    [trackedSet],
+  );
+  const trackedIdsForAnalysis = useMemo(
+    () => trackedCatalogEntries.map((city) => city.id),
+    [trackedCatalogEntries],
+  );
+  const trackedCatalogMap = useMemo(
+    () => new Map(trackedCatalogEntries.map((city) => [city.id, city])),
+    [trackedCatalogEntries],
+  );
+  const hasEnoughTracked = trackedIdsForAnalysis.length >= 2;
+
   const {
     status,
     isLoading,
@@ -291,13 +313,39 @@ export const MultiCityAnalysisPage = () => {
     actions,
     source,
     lastFetched,
-  } = useMultiCityAnalysisData();
+  } = useMultiCityAnalysisData(trackedIdsForAnalysis, { allowDefault: false });
+
+  useEffect(() => {
+    if (!trackedIdsForAnalysis.length) {
+      if (selectedCityIds.length) {
+        actions.setSelectedCityIds([]);
+      }
+      return;
+    }
+
+    const filtered = selectedCityIds.filter((cityId) => trackedSet.has(cityId));
+    const fallback = filtered.length
+      ? filtered
+      : trackedIdsForAnalysis.slice(0, Math.min(trackedIdsForAnalysis.length, 6));
+
+    const isSameSelection = fallback.length === selectedCityIds.length
+      && fallback.every((cityId, index) => cityId === selectedCityIds[index]);
+
+    if (!isSameSelection) {
+      actions.setSelectedCityIds(fallback);
+    }
+  }, [actions, selectedCityIds, trackedIdsForAnalysis, trackedSet]);
 
   const matrixChartData = useMemo(() => overview?.matrix ?? [], [overview?.matrix]);
+  const trackedAvailableCities = useMemo(
+    () => trackedCatalogEntries.filter((city) => !selectedCityIds.includes(city.id)),
+    [selectedCityIds, trackedCatalogEntries],
+  );
+  const disableAddCity = trackedAvailableCities.length === 0;
 
   const addCity = (event) => {
     const cityId = event.target.value;
-    if (cityId) {
+    if (cityId && trackedSet.has(cityId)) {
       actions.toggleCity(cityId);
     }
   };
@@ -333,12 +381,13 @@ export const MultiCityAnalysisPage = () => {
               <select
                 value=""
                 onChange={addCity}
-                className="rounded-xl border border-slate-700 bg-slate-900/80 px-4 py-2 text-sm text-slate-200 focus:border-cyan-500 focus:outline-none"
+                disabled={disableAddCity}
+                className="rounded-xl border border-slate-700 bg-slate-900/80 px-4 py-2 text-sm text-slate-200 focus:border-cyan-500 focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
               >
                 <option value="" disabled>
                   Select city
                 </option>
-                {availableCities.map((city) => (
+                {trackedAvailableCities.map((city) => (
                   <option key={city.id} value={city.id}>
                     {city.name}, {city.state}
                   </option>
@@ -375,10 +424,16 @@ export const MultiCityAnalysisPage = () => {
           </div>
         </header>
 
+        {!hasEnoughTracked && (
+          <div className="rounded-3xl border border-amber-300/40 bg-amber-50/80 p-4 text-sm text-amber-800">
+            Track at least two cities from the dashboard to unlock comparative insights here. Add more cities to your watchlist and try again.
+          </div>
+        )}
+
         <div className="flex flex-wrap items-center gap-2">
           <span className="text-xs uppercase tracking-[0.3em] text-slate-400">Selected cities</span>
           {selectedCityIds.map((cityId) => {
-            const city = CITY_CATALOG.find((c) => c.id === cityId);
+            const city = trackedCatalogMap.get(cityId) ?? CITY_CATALOG.find((c) => c.id === cityId);
             return city ? (
               <SelectedCityChip
                 key={city.id}
@@ -396,63 +451,68 @@ export const MultiCityAnalysisPage = () => {
           </div>
         )}
 
-        <section className="rounded-3xl border border-slate-800 bg-slate-900/60 p-6">
-          <SectionHeading
-            eyebrow="aqi matrix"
-            title="Quick AQI comparison"
-            description="Visualize comparative AQI loads with delta context"
-            alignment="left"
-          />
-          <div className="mt-6 h-80 w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={matrixChartData} margin={{ top: 10, right: 20, left: 0, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
-                <XAxis dataKey="cityName" stroke="#94a3b8" interval={0} angle={-20} dy={10} />
-                <YAxis stroke="#94a3b8" />
-                <Tooltip content={<MatrixTooltip />} />
-                <Bar dataKey="aqi" fill="#22d3ee" radius={[12, 12, 0, 0]} />
-              </BarChart>
-            </ResponsiveContainer>
+        <div className="grid gap-6 xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+          <div className="space-y-6">
+            <section className="rounded-3xl border border-slate-800 bg-slate-900/60 p-6">
+              <SectionHeading
+                eyebrow="aqi matrix"
+                title="Quick AQI comparison"
+                description="Visualize comparative AQI loads with delta context"
+                alignment="left"
+              />
+              <div className="mt-6 h-80 w-full">
+                <ResponsiveContainer width="100%" height="100%">
+                  <BarChart data={matrixChartData} margin={{ top: 10, right: 20, left: 0, bottom: 0 }}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#1f2937" />
+                    <XAxis dataKey="cityName" stroke="#94a3b8" interval={0} angle={-20} dy={10} />
+                    <YAxis stroke="#94a3b8" />
+                    <Tooltip content={<MatrixTooltip />} />
+                    <Bar dataKey="aqi" fill="#22d3ee" radius={[12, 12, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              </div>
+            </section>
+
+            <section className="grid gap-6 lg:grid-cols-2">
+              <PollutantMatrixTable matrix={overview?.pollutantMatrix ?? []} />
+              <div className="rounded-3xl border border-slate-800 bg-slate-900/60 p-6">
+                <SectionHeading
+                  eyebrow="correlation"
+                  title="Weather interaction insights"
+                  description="Leading correlations to monitor by city"
+                  alignment="left"
+                />
+                <div className="mt-5 grid gap-3">
+                  {(overview?.correlationInsights ?? []).map((insight) => (
+                    <CorrelationInsightCard key={insight.cityId} insight={insight} />
+                  ))}
+                </div>
+              </div>
+            </section>
+
+            <section className="grid gap-6 lg:grid-cols-2">
+              <TemporalPatternChart
+                title="Hourly pattern"
+                data={overview?.temporalPatterns?.hourly ?? []}
+                dataKey="hourly"
+              />
+              <TemporalPatternChart
+                title="Weekly pattern"
+                data={overview?.temporalPatterns?.weekly ?? []}
+                dataKey="weekly"
+              />
+            </section>
           </div>
-        </section>
 
-        <section className="grid gap-6 lg:grid-cols-3">
-          <LeaderboardCard title="Top hotspots" entries={hotspots} />
-          <LeaderboardCard title="Best performers" entries={healthiest} />
-          <DominantPollutantList dominantPollutants={dominantPollutants} />
-        </section>
-
-        <section className="grid gap-6 lg:grid-cols-2">
-          <PollutantMatrixTable matrix={overview?.pollutantMatrix ?? []} />
-          <div className="rounded-3xl border border-slate-800 bg-slate-900/60 p-6">
-            <SectionHeading
-              eyebrow="correlation"
-              title="Weather interaction insights"
-              description="Leading correlations to monitor by city"
-              alignment="left"
-            />
-            <div className="mt-5 grid gap-3">
-              {(overview?.correlationInsights ?? []).map((insight) => (
-                <CorrelationInsightCard key={insight.cityId} insight={insight} />
-              ))}
+          <aside className="space-y-6">
+            <div className="grid gap-6">
+              <LeaderboardCard title="Top hotspots" entries={hotspots} />
+              <LeaderboardCard title="Best performers" entries={healthiest} />
+              <DominantPollutantList dominantPollutants={dominantPollutants} />
             </div>
-          </div>
-        </section>
-
-        <section className="grid gap-6 lg:grid-cols-2">
-          <TemporalPatternChart
-            title="Hourly pattern"
-            data={overview?.temporalPatterns?.hourly ?? []}
-            dataKey="hourly"
-          />
-          <TemporalPatternChart
-            title="Weekly pattern"
-            data={overview?.temporalPatterns?.weekly ?? []}
-            dataKey="weekly"
-          />
-        </section>
-
-        {overview?.cumulativeImpact && <CumulativeImpactPanel impact={overview.cumulativeImpact} />}
+            {overview?.cumulativeImpact && <CumulativeImpactPanel impact={overview.cumulativeImpact} />}
+          </aside>
+        </div>
 
         {isLoading && (
           <div className="text-center text-sm text-slate-500">Loading multi-city overview…</div>
