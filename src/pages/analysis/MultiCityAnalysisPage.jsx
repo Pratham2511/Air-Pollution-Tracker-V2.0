@@ -309,7 +309,6 @@ export const MultiCityAnalysisPage = () => {
     hotspots,
     healthiest,
     dominantPollutants,
-    availableCities,
     actions,
     source,
     lastFetched,
