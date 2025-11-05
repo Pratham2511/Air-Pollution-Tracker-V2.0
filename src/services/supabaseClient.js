@@ -75,6 +75,14 @@ if (!hasSupabaseCredentials) {
   supabase = createStubSupabase();
 } else {
   supabase = createClient(supabaseUrl, supabaseAnonKey);
+
+  // Expose client for quick debugging in development if enabled
+  if (typeof window !== 'undefined' && process.env.NODE_ENV !== 'production' && process.env.REACT_APP_EXPOSE_SUPABASE === '1') {
+    // eslint-disable-next-line no-console
+    console.warn('[supabaseClient] Dev flag enabled: exposing client on window.__supabase');
+    // eslint-disable-next-line no-underscore-dangle
+    window.__supabase = supabase;
+  }
 }
 
 export { supabase, hasSupabaseCredentials };

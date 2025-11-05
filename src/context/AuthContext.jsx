@@ -47,10 +47,20 @@ export const AuthProvider = ({ children }) => {
     setState((prev) => ({ ...prev, loading: true, error: null }));
 
     try {
-      const {
-        data: { session },
-        error,
-      } = await supabase.auth.getSession();
+      // Safety guard: cap session wait to avoid indefinite "pending" UI if SDK/network hangs
+      const timeoutMs = 5000;
+      const sessionPromise = supabase.auth.getSession();
+      const timeoutPromise = new Promise((resolve) =>
+        setTimeout(
+          () => resolve({ data: { session: null }, error: new Error('getSession-timeout') }),
+          timeoutMs,
+        ),
+      );
+
+      const { data: { session } = { session: null }, error } = await Promise.race([
+        sessionPromise,
+        timeoutPromise,
+      ]);
 
       if (!isMountedRef.current) {
         return;
@@ -59,7 +69,7 @@ export const AuthProvider = ({ children }) => {
       if (error) {
         if (process.env.NODE_ENV !== 'production') {
           // eslint-disable-next-line no-console
-          console.warn('[AuthContext] getSession failed', error);
+          console.warn('[AuthContext] getSession failed/timeout', error);
         }
         setState((prev) => ({ ...prev, loading: false, error }));
         return;
