@@ -74,7 +74,12 @@ export const useMultiCityAnalysisData = (initialCityIds = DEFAULT_CITY_IDS, opti
     });
   }, []);
 
-  const matrix = overview?.matrix ?? [];
+  const matrixSource = overview?.matrix;
+
+  const matrix = useMemo(
+    () => (Array.isArray(matrixSource) ? matrixSource : []),
+    [matrixSource],
+  );
 
   const hotspots = useMemo(
     () => [...matrix].sort((a, b) => b.aqi - a.aqi).slice(0, 5),

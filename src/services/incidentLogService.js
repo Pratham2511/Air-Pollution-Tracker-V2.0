@@ -83,7 +83,9 @@ export const recordIncidentBreach = async ({ incidentId, actorId, actorRole, met
     metadata,
   });
 
-export default {
+const incidentLogService = {
   recordIncidentEvent,
   recordIncidentBreach,
 };
+
+export default incidentLogService;

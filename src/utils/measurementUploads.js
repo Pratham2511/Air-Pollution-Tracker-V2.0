@@ -29,7 +29,19 @@ export const isValidAqi = (aqi) => Number.isFinite(aqi) && aqi >= 0 && aqi <= 50
 
 const looksLikeCsvFilename = (name) => typeof name === 'string' && name.toLowerCase().endsWith('.csv');
 
-const containsUnsupportedControlCharacters = (text) => /[\u0000-\u0008\u000B\u000C\u000E-\u001F]/.test(text);
+const containsUnsupportedControlCharacters = (text) => {
+  for (let index = 0; index < text.length; index += 1) {
+    const code = text.charCodeAt(index);
+    const isControlRange = (code >= 0x00 && code <= 0x08)
+      || code === 0x0b
+      || code === 0x0c
+      || (code >= 0x0e && code <= 0x1f);
+    if (isControlRange) {
+      return true;
+    }
+  }
+  return false;
+};
 
 const buildIssuesTally = (rejectedRows) => rejectedRows.reduce((accumulator, row) => {
   row.reasons.forEach((reason) => {
@@ -188,7 +200,7 @@ export const analyzeUploadPayload = async ({ file, records }, {
   throw new Error('Measurement upload requires a CSV file or prepared records.');
 };
 
-export default {
+const measurementUploads = {
   REQUIRED_UPLOAD_COLUMNS,
   ISSUE_LABELS,
   sanitizeNumber,
@@ -198,3 +210,5 @@ export default {
   parseCsvContent,
   analyzeUploadPayload,
 };
+
+export default measurementUploads;

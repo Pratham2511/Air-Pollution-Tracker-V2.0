@@ -112,8 +112,10 @@ export const resolveUserLocation = async ({
   }
 };
 
-export default {
+const geolocationService = {
   getBrowserLocation,
   lookupIpLocation,
   resolveUserLocation,
 };
+
+export default geolocationService;

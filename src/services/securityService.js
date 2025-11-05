@@ -85,8 +85,10 @@ export const SecurityEvents = Object.freeze({
   SECURITY_INCIDENT: 'security_incident',
 });
 
-export default {
+const securityService = {
   logAccessGranted,
   logAccessDenied,
   logSecurityIncident,
 };
+
+export default securityService;

@@ -60,7 +60,9 @@ export const recordOpenAqIngestionLog = async ({ cityId, status, error, startedA
   return { error: insertError?.message ?? null };
 };
 
-export default {
+const openAqIngestionService = {
   upsertOpenAqSnapshots,
   recordOpenAqIngestionLog,
 };
+
+export default openAqIngestionService;

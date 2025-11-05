@@ -106,7 +106,7 @@ export const MapViewPanel = ({ cities, isLoading, onSelectCity }) => {
   const clusterGroupRef = useRef(null);
   const trackedCount = useMemo(() => cities.filter((city) => city.isTracked).length, [cities]);
   const hasMapboxBudgeting = Boolean(mapboxToken);
-  const { canUseMap, registerLoad, remaining, reason, hasSaveDataEnabled, maxMonthlyLoads } = useMapboxGuardrail({
+  const { canUseMap, registerLoad, remaining, reason, maxMonthlyLoads } = useMapboxGuardrail({
     isEnabled: hasMapboxBudgeting,
   });
   const shouldRenderMap = !hasMapboxBudgeting ? !isLoading : isMapActivated && canUseMap && !isLoading;

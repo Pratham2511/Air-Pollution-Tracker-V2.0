@@ -367,14 +367,6 @@ const readIncidentActivityCache = () => {
   }
 };
 
-const writeIncidentActivityCache = (entries) => {
-  try {
-    window.localStorage.setItem(INCIDENT_ACTIVITY_STORAGE_KEY, JSON.stringify(entries));
-  } catch (error) {
-    // noop
-  }
-};
-
 const readUploadCache = () => {
   try {
     const stored = window.localStorage.getItem(UPLOAD_STORAGE_KEY);

@@ -352,8 +352,10 @@ export const fetchOpenAqCitySnapshots = async (cities, options = {}) => {
   return snapshots.filter(Boolean);
 };
 
-export default {
+const openAqService = {
   fetchOpenAqCitySnapshot,
   fetchOpenAqCitySnapshots,
   clearOpenAqCache,
 };
+
+export default openAqService;
