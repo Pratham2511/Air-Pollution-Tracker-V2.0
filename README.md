@@ -130,6 +130,25 @@ npm install -g serve
 serve -s build
 ```
 
+### Deploying to Vercel
+
+This repository includes a `vercel.json` configuration so the React router will work on Vercel without additional setup. To deploy:
+
+1. **Connect the GitHub repo** to your Vercel account (`https://vercel.com/pratham-pansares-projects`).
+2. When prompted, use the default build settings:
+	- Framework preset: *Create React App*
+	- Build command: `npm run build`
+	- Output directory: `build`
+3. In Vercel → *Settings → Environment Variables*, add the production keys:
+	- `REACT_APP_SUPABASE_URL`
+	- `REACT_APP_SUPABASE_ANON_KEY`
+	- `REACT_APP_OPENAQ_API_KEY`
+	- `REACT_APP_MAPBOX_TOKEN`
+	- (Optional) leave `REACT_APP_DEV_AUTH_BYPASS` and `REACT_APP_EXPOSE_SUPABASE` unset so production stays secure.
+4. Trigger a deployment; Vercel will build from the latest `main` commit and serve the static bundle.
+
+Supabase must also contain the schema from `supabase/schema/phase2-auth.sql`, `phase3-dashboard.sql`, and `phase4-government.sql`, and your production Supabase project should have the same URL/key pair used above.
+
 ## License
 
 This project is maintained by [Pratham Pansare](https://github.com/Pratham2511). See the repository for
