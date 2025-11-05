@@ -151,6 +151,8 @@ This repository includes a `vercel.json` configuration so the React router will 
 
 Supabase must also contain the schema from `supabase/schema/phase2-auth.sql`, `phase3-dashboard.sql`, and `phase4-government.sql`, and your production Supabase project should have the same URL/key pair used above.
 
+> After applying the schema migrations, run the updated `supabase/policies/rls-policy-templates.sql` script to enable the refreshed Phase 4 RLS policies (notes tagging, government incidents, measurement uploads, and scheduled reports now record `created_by` metadata).
+
 ## License
 
 This project is maintained by [Pratham Pansare](https://github.com/Pratham2511). See the repository for

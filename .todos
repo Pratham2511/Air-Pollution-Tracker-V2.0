@@ -1,0 +1,5 @@
+1. Implement Phase 4 government data wiring and Supabase RLS policies.
+2. Build Phase 5 analysis pages and analytics automation.
+3. Address Phase 6+ security, QA, and performance tasks per roadmap.
+4. Validate Vercel deployment after upcoming feature additions.
+5. Review and update documentation as new features ship.

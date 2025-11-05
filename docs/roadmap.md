@@ -168,6 +168,11 @@ create table public.otp_requests (
 - Use Supabase Functions (Edge) for scheduled fetches and report automation.
 - Add RLS to restrict government data by jurisdiction unless admin.
 
+### Progress (2025-11-05)
+- ✅ Government live metrics, policy impacts, and reporting feeds now fetch from Supabase tables with realtime updates and offline fallbacks.
+- ✅ Incident desk, measurement uploads, and scheduled reports persist `created_by` metadata to satisfy updated RLS policies.
+- ✅ `phase4-government.sql` adds delivery channel + note tagging columns, with refreshed RLS templates covering all portal tables.
+
 ### QA Gate
 - Automated tests for data imports.
 - Accessibility audit (axe) on portal pages.

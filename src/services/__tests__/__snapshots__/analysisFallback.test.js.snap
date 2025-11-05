@@ -1,0 +1,616 @@
+// Jest Snapshot v1, https://goo.gl/fbAQLP
+
+exports[`analysisFallback builds deterministic multi-city overview payload 1`] = `
+Object {
+  "correlationInsights": Array [
+    Object {
+      "cityId": "delhi",
+      "cityName": "New Delhi",
+      "correlations": Object {
+        "humidity": 0.36,
+        "precipitation": 0.09,
+        "temperature": 0.6,
+        "windSpeed": 0.68,
+      },
+    },
+    Object {
+      "cityId": "mumbai",
+      "cityName": "Mumbai",
+      "correlations": Object {
+        "humidity": 0.13,
+        "precipitation": -0.77,
+        "temperature": -0.25,
+        "windSpeed": 0.55,
+      },
+    },
+  ],
+  "cumulativeImpact": Object {
+    "alertsIssued": 4,
+    "averageAqi": 317,
+    "hazardousHours": 12,
+    "populationExposed": 309659,
+  },
+  "matrix": Array [
+    Object {
+      "aqi": 290,
+      "change": 20,
+      "cityId": "delhi",
+      "cityName": "New Delhi",
+      "dominantPollutant": "PM10",
+      "lastUpdated": "2024-12-31T23:00:00.000Z",
+      "level": Object {
+        "color": "aqi-very-unhealthy",
+        "label": "Very Unhealthy",
+        "threshold": 300,
+      },
+      "pollutantBreakdown": Array [
+        Object {
+          "dominance": "primary",
+          "pollutant": "PM10",
+          "unit": "µg/m³",
+          "value": 95,
+        },
+        Object {
+          "dominance": "secondary",
+          "pollutant": "PM2.5",
+          "unit": "µg/m³",
+          "value": 61.1,
+        },
+        Object {
+          "dominance": "minor",
+          "pollutant": "NO₂",
+          "unit": "µg/m³",
+          "value": 36.8,
+        },
+        Object {
+          "dominance": "minor",
+          "pollutant": "CO",
+          "unit": "µg/m³",
+          "value": 31.6,
+        },
+        Object {
+          "dominance": "minor",
+          "pollutant": "SO₂",
+          "unit": "µg/m³",
+          "value": 30.4,
+        },
+        Object {
+          "dominance": "minor",
+          "pollutant": "O₃",
+          "unit": "µg/m³",
+          "value": 27.3,
+        },
+      ],
+      "population": 193836,
+      "riskScore": 4.7,
+    },
+    Object {
+      "aqi": 343,
+      "change": 14,
+      "cityId": "mumbai",
+      "cityName": "Mumbai",
+      "dominantPollutant": "PM2.5",
+      "lastUpdated": "2024-12-31T18:00:00.000Z",
+      "level": Object {
+        "color": "aqi-hazardous",
+        "label": "Hazardous",
+        "threshold": Infinity,
+      },
+      "pollutantBreakdown": Array [
+        Object {
+          "dominance": "primary",
+          "pollutant": "PM2.5",
+          "unit": "µg/m³",
+          "value": 108.8,
+        },
+        Object {
+          "dominance": "secondary",
+          "pollutant": "CO",
+          "unit": "µg/m³",
+          "value": 64.7,
+        },
+        Object {
+          "dominance": "minor",
+          "pollutant": "O₃",
+          "unit": "µg/m³",
+          "value": 63.3,
+        },
+        Object {
+          "dominance": "minor",
+          "pollutant": "PM10",
+          "unit": "µg/m³",
+          "value": 34.7,
+        },
+        Object {
+          "dominance": "minor",
+          "pollutant": "SO₂",
+          "unit": "µg/m³",
+          "value": 25.8,
+        },
+        Object {
+          "dominance": "minor",
+          "pollutant": "NO₂",
+          "unit": "µg/m³",
+          "value": 22,
+        },
+      ],
+      "population": 287514,
+      "riskScore": 2.7,
+    },
+  ],
+  "meta": Object {
+    "cityCount": 2,
+    "generatedAt": "2025-01-01T00:00:00.000Z",
+    "window": "7d",
+  },
+  "pollutantMatrix": Array [
+    Object {
+      "cityId": "delhi",
+      "cityName": "New Delhi",
+      "pollutants": Array [
+        Object {
+          "pollutant": "PM10",
+          "value": 95,
+        },
+        Object {
+          "pollutant": "PM2.5",
+          "value": 61.1,
+        },
+        Object {
+          "pollutant": "NO₂",
+          "value": 36.8,
+        },
+        Object {
+          "pollutant": "CO",
+          "value": 31.6,
+        },
+        Object {
+          "pollutant": "SO₂",
+          "value": 30.4,
+        },
+        Object {
+          "pollutant": "O₃",
+          "value": 27.3,
+        },
+      ],
+    },
+    Object {
+      "cityId": "mumbai",
+      "cityName": "Mumbai",
+      "pollutants": Array [
+        Object {
+          "pollutant": "PM2.5",
+          "value": 108.8,
+        },
+        Object {
+          "pollutant": "CO",
+          "value": 64.7,
+        },
+        Object {
+          "pollutant": "O₃",
+          "value": 63.3,
+        },
+        Object {
+          "pollutant": "PM10",
+          "value": 34.7,
+        },
+        Object {
+          "pollutant": "SO₂",
+          "value": 25.8,
+        },
+        Object {
+          "pollutant": "NO₂",
+          "value": 22,
+        },
+      ],
+    },
+  ],
+  "temporalPatterns": Object {
+    "hourly": Array [
+      Object {
+        "averageAqi": 315,
+        "hour": 0,
+      },
+      Object {
+        "averageAqi": 316,
+        "hour": 1,
+      },
+      Object {
+        "averageAqi": 336,
+        "hour": 2,
+      },
+      Object {
+        "averageAqi": 324,
+        "hour": 3,
+      },
+      Object {
+        "averageAqi": 337,
+        "hour": 4,
+      },
+      Object {
+        "averageAqi": 344,
+        "hour": 5,
+      },
+      Object {
+        "averageAqi": 341,
+        "hour": 6,
+      },
+      Object {
+        "averageAqi": 324,
+        "hour": 7,
+      },
+      Object {
+        "averageAqi": 327,
+        "hour": 8,
+      },
+      Object {
+        "averageAqi": 338,
+        "hour": 9,
+      },
+      Object {
+        "averageAqi": 330,
+        "hour": 10,
+      },
+      Object {
+        "averageAqi": 321,
+        "hour": 11,
+      },
+      Object {
+        "averageAqi": 319,
+        "hour": 12,
+      },
+      Object {
+        "averageAqi": 311,
+        "hour": 13,
+      },
+      Object {
+        "averageAqi": 317,
+        "hour": 14,
+      },
+      Object {
+        "averageAqi": 312,
+        "hour": 15,
+      },
+      Object {
+        "averageAqi": 295,
+        "hour": 16,
+      },
+      Object {
+        "averageAqi": 306,
+        "hour": 17,
+      },
+      Object {
+        "averageAqi": 291,
+        "hour": 18,
+      },
+      Object {
+        "averageAqi": 301,
+        "hour": 19,
+      },
+      Object {
+        "averageAqi": 299,
+        "hour": 20,
+      },
+      Object {
+        "averageAqi": 299,
+        "hour": 21,
+      },
+      Object {
+        "averageAqi": 316,
+        "hour": 22,
+      },
+      Object {
+        "averageAqi": 312,
+        "hour": 23,
+      },
+    ],
+    "weekly": Array [
+      Object {
+        "averageAqi": 341,
+        "day": "Mon",
+      },
+      Object {
+        "averageAqi": 331,
+        "day": "Tue",
+      },
+      Object {
+        "averageAqi": 311,
+        "day": "Wed",
+      },
+      Object {
+        "averageAqi": 304,
+        "day": "Thu",
+      },
+      Object {
+        "averageAqi": 303,
+        "day": "Fri",
+      },
+      Object {
+        "averageAqi": 316,
+        "day": "Sat",
+      },
+      Object {
+        "averageAqi": 322,
+        "day": "Sun",
+      },
+    ],
+  },
+  "trendLeaders": Object {
+    "deteriorating": Array [
+      Object {
+        "cityId": "delhi",
+        "cityName": "New Delhi",
+        "currentAqi": 290,
+        "delta": 20,
+        "level": Object {
+          "color": "aqi-very-unhealthy",
+          "label": "Very Unhealthy",
+          "threshold": 300,
+        },
+      },
+      Object {
+        "cityId": "mumbai",
+        "cityName": "Mumbai",
+        "currentAqi": 343,
+        "delta": 14,
+        "level": Object {
+          "color": "aqi-hazardous",
+          "label": "Hazardous",
+          "threshold": Infinity,
+        },
+      },
+    ],
+    "improving": Array [
+      Object {
+        "cityId": "mumbai",
+        "cityName": "Mumbai",
+        "currentAqi": 343,
+        "delta": 14,
+        "level": Object {
+          "color": "aqi-hazardous",
+          "label": "Hazardous",
+          "threshold": Infinity,
+        },
+      },
+      Object {
+        "cityId": "delhi",
+        "cityName": "New Delhi",
+        "currentAqi": 290,
+        "delta": 20,
+        "level": Object {
+          "color": "aqi-very-unhealthy",
+          "label": "Very Unhealthy",
+          "threshold": 300,
+        },
+      },
+    ],
+  },
+}
+`;
+
+exports[`analysisFallback builds deterministic single-city analysis payload 1`] = `
+Object {
+  "city": Object {
+    "coordinates": Object {
+      "lat": 28.6139,
+      "lng": 77.209,
+    },
+    "country": "India",
+    "id": "delhi",
+    "name": "New Delhi",
+    "state": undefined,
+  },
+  "comparisons": Object {
+    "advisoryTriggers": 3,
+    "criticalHours": 3,
+    "currentAverage": 251,
+    "delta": -24,
+    "direction": "improving",
+    "previousAverage": 275,
+  },
+  "exposure": Object {
+    "aqiLoadIndex": 265,
+    "estimatedPopulation": 4592550,
+    "exposureHours": 28,
+  },
+  "forecast": Object {
+    "longTerm": Array [
+      Object {
+        "projectedAqi": 275,
+        "timestamp": "2025-01-02T00:00:00.000Z",
+      },
+      Object {
+        "projectedAqi": 261,
+        "timestamp": "2025-01-03T00:00:00.000Z",
+      },
+      Object {
+        "projectedAqi": 256,
+        "timestamp": "2025-01-04T00:00:00.000Z",
+      },
+      Object {
+        "projectedAqi": 219,
+        "timestamp": "2025-01-05T00:00:00.000Z",
+      },
+      Object {
+        "projectedAqi": 227,
+        "timestamp": "2025-01-06T00:00:00.000Z",
+      },
+    ],
+    "shortTerm": Array [
+      Object {
+        "projectedAqi": 244,
+        "timestamp": "2025-01-01T08:00:00.000Z",
+      },
+      Object {
+        "projectedAqi": 244,
+        "timestamp": "2025-01-01T16:00:00.000Z",
+      },
+      Object {
+        "projectedAqi": 227,
+        "timestamp": "2025-01-02T00:00:00.000Z",
+      },
+      Object {
+        "projectedAqi": 243,
+        "timestamp": "2025-01-02T08:00:00.000Z",
+      },
+      Object {
+        "projectedAqi": 243,
+        "timestamp": "2025-01-02T16:00:00.000Z",
+      },
+      Object {
+        "projectedAqi": 240,
+        "timestamp": "2025-01-03T00:00:00.000Z",
+      },
+    ],
+  },
+  "healthAdvisories": Array [
+    Object {
+      "actions": Array [
+        "Enforce traffic restrictions",
+        "Activate emergency operations center",
+        "Broadcast stay-indoors guidance",
+      ],
+      "description": "AQI levels require immediate mitigation. Initiate emergency playbooks.",
+      "headline": "Severe air quality emergency",
+      "severity": "very-high",
+    },
+    Object {
+      "actions": Array [
+        "Schedule hourly command briefings",
+        "Deploy mobile filtration units",
+      ],
+      "description": "Sustained high AQI requires multi-agency coordination for rapid response.",
+      "headline": "Coordinate inter-agency response",
+      "severity": "high",
+    },
+  ],
+  "meta": Object {
+    "generatedAt": "2025-01-01T00:00:00.000Z",
+    "level": Object {
+      "color": "aqi-very-unhealthy",
+      "label": "Very Unhealthy",
+      "threshold": 300,
+    },
+    "window": "7d",
+  },
+  "pollutantBreakdown": Array [
+    Object {
+      "dominance": "primary",
+      "pollutant": "PM10",
+      "unit": "µg/m³",
+      "value": 95,
+    },
+    Object {
+      "dominance": "secondary",
+      "pollutant": "PM2.5",
+      "unit": "µg/m³",
+      "value": 61.1,
+    },
+    Object {
+      "dominance": "minor",
+      "pollutant": "NO₂",
+      "unit": "µg/m³",
+      "value": 36.8,
+    },
+    Object {
+      "dominance": "minor",
+      "pollutant": "CO",
+      "unit": "µg/m³",
+      "value": 31.6,
+    },
+    Object {
+      "dominance": "minor",
+      "pollutant": "SO₂",
+      "unit": "µg/m³",
+      "value": 30.4,
+    },
+    Object {
+      "dominance": "minor",
+      "pollutant": "O₃",
+      "unit": "µg/m³",
+      "value": 27.3,
+    },
+  ],
+  "sourceAttribution": Array [
+    Object {
+      "confidence": 0.77,
+      "impact": "regional crop residue burning",
+      "source": "Agricultural Burning",
+    },
+    Object {
+      "confidence": 0.74,
+      "impact": "adjacent industrial estates",
+      "source": "Industrial Output",
+    },
+    Object {
+      "confidence": 0.74,
+      "impact": "urban development zones",
+      "source": "Construction Dust",
+    },
+    Object {
+      "confidence": 0.66,
+      "impact": "transportation corridors",
+      "source": "Vehicular Emissions",
+    },
+  ],
+  "trendSeries": Array [
+    Object {
+      "aqi": 254,
+      "rollingAvg": 261,
+      "timestamp": "2024-12-25T00:00:00.000Z",
+    },
+    Object {
+      "aqi": 302,
+      "rollingAvg": 287,
+      "timestamp": "2024-12-26T00:00:00.000Z",
+    },
+    Object {
+      "aqi": 278,
+      "rollingAvg": 273,
+      "timestamp": "2024-12-27T00:00:00.000Z",
+    },
+    Object {
+      "aqi": 265,
+      "rollingAvg": 270,
+      "timestamp": "2024-12-28T00:00:00.000Z",
+    },
+    Object {
+      "aqi": 244,
+      "rollingAvg": 257,
+      "timestamp": "2024-12-29T00:00:00.000Z",
+    },
+    Object {
+      "aqi": 269,
+      "rollingAvg": 271,
+      "timestamp": "2024-12-30T00:00:00.000Z",
+    },
+    Object {
+      "aqi": 240,
+      "rollingAvg": 253,
+      "timestamp": "2024-12-31T00:00:00.000Z",
+    },
+  ],
+  "weatherCorrelations": Array [
+    Object {
+      "correlation": -0.54,
+      "metric": "temperature",
+    },
+    Object {
+      "correlation": -0.72,
+      "metric": "humidity",
+    },
+    Object {
+      "correlation": 0.63,
+      "metric": "windSpeed",
+    },
+    Object {
+      "correlation": -0.44,
+      "metric": "precipitation",
+    },
+    Object {
+      "correlation": 0.3,
+      "metric": "surfacePressure",
+    },
+  ],
+}
+`;

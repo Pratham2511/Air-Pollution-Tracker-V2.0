@@ -10,6 +10,81 @@ const INCIDENT_ACTIVITY_STORAGE_KEY = 'aqt::incident-activity@v1';
 const UPLOAD_STORAGE_KEY = 'aqt::gov-uploads@v1';
 const REPORT_SUBSCRIPTION_STORAGE_KEY = 'aqt::gov-report-subscriptions@v1';
 
+const nowIso = () => new Date().toISOString();
+
+const normalizeTags = (value) => {
+  if (Array.isArray(value)) {
+    return value;
+  }
+  if (typeof value === 'string' && value.trim().length) {
+    return value
+      .split(',')
+      .map((entry) => entry.trim())
+      .filter(Boolean);
+  }
+  return [];
+};
+
+const normalizeIncidentRecord = (record = {}) => ({
+  id: record.id,
+  title: record.title,
+  severity: record.severity,
+  summary: record.summary,
+  status: record.status,
+  tags: normalizeTags(record.tags),
+  assignedTo: record.assigned_to ?? record.assignedTo ?? 'Operations',
+  createdAt: record.created_at ?? record.createdAt ?? null,
+  updatedAt: record.updated_at ?? record.updatedAt ?? record.created_at ?? record.createdAt ?? null,
+  createdBy: record.created_by ?? record.createdBy ?? null,
+});
+
+const normalizeNoteRecord = (record = {}) => ({
+  id: record.id,
+  title: record.title ?? record.subject ?? 'Untitled Field Note',
+  description: record.description ?? record.body ?? null,
+  category: record.category ?? record.type ?? 'info',
+  tags: normalizeTags(record.tags),
+  createdAt: record.created_at ?? record.createdAt ?? null,
+  updatedAt: record.updated_at ?? record.updatedAt ?? record.created_at ?? record.createdAt ?? null,
+  createdBy: record.created_by ?? record.createdBy ?? null,
+});
+
+const normalizeUploadRecord = (record = {}) => ({
+  id: record.id,
+  filename: record.filename,
+  status: record.status,
+  totalRows: record.total_rows ?? record.totalRows ?? 0,
+  acceptedRows: record.accepted_rows ?? record.acceptedRows ?? 0,
+  rejectedRows: record.rejected_rows ?? record.rejectedRows ?? 0,
+  summary: record.summary,
+  createdAt: record.created_at ?? record.createdAt ?? null,
+  createdBy: record.created_by ?? record.createdBy ?? null,
+});
+
+const normalizeReportSubscription = (record = {}) => ({
+  id: record.id,
+  name: record.name,
+  cadence: record.cadence,
+  audience: record.audience,
+  deliveryChannel: record.delivery_channel ?? record.deliveryChannel ?? 'email',
+  status: record.status,
+  lastRunAt: record.last_run_at ?? record.lastRunAt ?? null,
+  metadata: record.metadata ?? record.meta ?? {},
+  createdAt: record.created_at ?? record.createdAt ?? null,
+  createdBy: record.created_by ?? record.createdBy ?? null,
+});
+
+const normalizeDispatchLog = (record = {}) => ({
+  id: record.id,
+  subscriptionId: record.subscription_id ?? record.subscriptionId ?? null,
+  status: record.status,
+  createdAt: record.created_at ?? record.createdAt ?? null,
+  deliveredAt: record.delivered_at ?? record.deliveredAt ?? null,
+  errorMessage: record.error_message ?? record.errorMessage ?? null,
+  audience: record.audience,
+  summary: record.summary ?? {},
+});
+
 const statusFromAqi = (aqi) => {
   if (aqi >= 300) return 'Hazard';
   if (aqi >= 200) return 'Alert';
@@ -209,6 +284,8 @@ const generateReportSubscriptionsFallback = () => {
       name: 'Daily AQI Digest',
       cadence: '07:00 IST',
       audience: '35 recipients',
+      deliveryChannel: 'email',
+      metadata: { tier: 'executive' },
       status: 'active',
       lastRunAt: new Date(now.getTime() - 2 * 60 * 60 * 1000).toISOString(),
       lastStatus: 'delivered',
@@ -218,6 +295,8 @@ const generateReportSubscriptionsFallback = () => {
       name: 'Weekly Policy Brief',
       cadence: 'Mondays 09:00 IST',
       audience: '12 recipients',
+      deliveryChannel: 'email',
+      metadata: { tier: 'policy' },
       status: 'queued',
       lastRunAt: new Date(now.getTime() - 5 * 24 * 60 * 60 * 1000).toISOString(),
       lastStatus: 'no_audience',
@@ -227,6 +306,8 @@ const generateReportSubscriptionsFallback = () => {
       name: 'Incident Escalation',
       cadence: 'Triggers when AQI > 350 for 30 mins',
       audience: 'Ops & Command',
+      deliveryChannel: 'slack',
+      metadata: { escalation: true },
       status: 'critical',
       lastRunAt: new Date(now.getTime() - 30 * 60 * 1000).toISOString(),
       lastStatus: 'delivered',
@@ -252,6 +333,7 @@ const generateReportDispatchFallback = () => {
         id: subscription.id,
         name: subscription.name,
         cadence: subscription.cadence,
+        deliveryChannel: subscription.deliveryChannel,
       },
     },
   }));
@@ -260,7 +342,8 @@ const generateReportDispatchFallback = () => {
 const readIncidentCache = () => {
   try {
     const stored = window.localStorage.getItem(INCIDENT_STORAGE_KEY);
-    return stored ? JSON.parse(stored) : [];
+    const parsed = stored ? JSON.parse(stored) : [];
+    return Array.isArray(parsed) ? parsed.map((entry) => normalizeIncidentRecord(entry)).filter(Boolean) : [];
   } catch (error) {
     return [];
   }
@@ -268,7 +351,8 @@ const readIncidentCache = () => {
 
 const writeIncidentCache = (incidents) => {
   try {
-    window.localStorage.setItem(INCIDENT_STORAGE_KEY, JSON.stringify(incidents));
+    const normalized = (incidents ?? []).map((entry) => normalizeIncidentRecord(entry));
+    window.localStorage.setItem(INCIDENT_STORAGE_KEY, JSON.stringify(normalized));
   } catch (error) {
     // noop
   }
@@ -294,7 +378,8 @@ const writeIncidentActivityCache = (entries) => {
 const readUploadCache = () => {
   try {
     const stored = window.localStorage.getItem(UPLOAD_STORAGE_KEY);
-    return stored ? JSON.parse(stored) : [];
+    const parsed = stored ? JSON.parse(stored) : [];
+    return Array.isArray(parsed) ? parsed.map((entry) => normalizeUploadRecord(entry)).filter(Boolean) : [];
   } catch (error) {
     return [];
   }
@@ -302,7 +387,8 @@ const readUploadCache = () => {
 
 const writeUploadCache = (uploads) => {
   try {
-    window.localStorage.setItem(UPLOAD_STORAGE_KEY, JSON.stringify(uploads));
+    const normalized = (uploads ?? []).map((entry) => normalizeUploadRecord(entry));
+    window.localStorage.setItem(UPLOAD_STORAGE_KEY, JSON.stringify(normalized));
   } catch (error) {
     // noop
   }
@@ -311,7 +397,8 @@ const writeUploadCache = (uploads) => {
 const readReportSubscriptionCache = () => {
   try {
     const stored = window.localStorage.getItem(REPORT_SUBSCRIPTION_STORAGE_KEY);
-    return stored ? JSON.parse(stored) : [];
+    const parsed = stored ? JSON.parse(stored) : [];
+    return Array.isArray(parsed) ? parsed.map((entry) => normalizeReportSubscription(entry)).filter(Boolean) : [];
   } catch (error) {
     return [];
   }
@@ -319,7 +406,8 @@ const readReportSubscriptionCache = () => {
 
 const writeReportSubscriptionCache = (subscriptions) => {
   try {
-    window.localStorage.setItem(REPORT_SUBSCRIPTION_STORAGE_KEY, JSON.stringify(subscriptions));
+    const normalized = (subscriptions ?? []).map((entry) => normalizeReportSubscription(entry));
+    window.localStorage.setItem(REPORT_SUBSCRIPTION_STORAGE_KEY, JSON.stringify(normalized));
   } catch (error) {
     // noop
   }
@@ -487,127 +575,113 @@ export const fetchHotspotAlerts = async ({ limit = 10 } = {}) => withFallback(
   generateHotspotFallback(limit)
 );
 
-  export const fetchPolicyImpacts = async ({ cityId, window = '7d', limit = 6 } = {}) => withFallback(
-    async () => {
-      if (!hasSupabaseCredentials) {
-        return { data: generatePolicyInsightsFallback({ cityId, window, limit }) };
-      }
+export const fetchPolicyImpacts = async ({ cityId, window = '7d', limit = 6 } = {}) => withFallback(
+  async () => {
+    if (!hasSupabaseCredentials) {
+      return { data: generatePolicyInsightsFallback({ cityId, window, limit }) };
+    }
 
-      let query = supabase
-        .from('gov_policy_impacts')
-        .select('id, city_id, window, title, summary, status, impact_score, confidence, effective_from, effective_to, metadata')
-        .order('effective_from', { ascending: false })
-        .limit(limit);
+    let query = supabase
+      .from('gov_policy_impacts')
+      .select('id, city_id, window, title, summary, status, impact_score, confidence, effective_from, effective_to, metadata')
+      .order('effective_from', { ascending: false })
+      .limit(limit);
 
-      if (cityId) {
-        query = query.eq('city_id', cityId);
-      }
-      if (window) {
-        query = query.eq('window', window);
-      }
+    if (cityId) {
+      query = query.eq('city_id', cityId);
+    }
+    if (window) {
+      query = query.eq('window', window);
+    }
 
-      const { data, error } = await query;
-      if (error) {
-        return { error: error.message };
-      }
+    const { data, error } = await query;
+    if (error) {
+      return { error: error.message };
+    }
 
-      return {
-        data: (data ?? []).map((row) => {
-          const catalogCity = CITY_CATALOG_BY_ID[row.city_id];
-          return {
-            id: row.id,
-            cityId: row.city_id,
-            cityName: row.metadata?.city_name ?? catalogCity ? `${catalogCity.name}, ${catalogCity.country}` : row.city_id,
-            window: row.window,
-            title: row.title,
-            summary: row.summary,
-            status: row.status,
-            impactScore: typeof row.impact_score === 'number' ? Number(row.impact_score) : null,
-            confidence: typeof row.confidence === 'number' ? Number(row.confidence) : null,
-            effectiveFrom: row.effective_from,
-            effectiveTo: row.effective_to,
-            metadata: row.metadata ?? {},
-          };
-        }),
-      };
-    },
-    generatePolicyInsightsFallback({ cityId, window, limit })
-  );
-
-  export const fetchReportSubscriptions = async ({ limit = 10 } = {}) => withFallback(
-    async () => {
-      if (!hasSupabaseCredentials) {
-        const cached = readReportSubscriptionCache();
-        if (cached.length) {
-          return { data: cached.slice(0, limit) };
-        }
-        const fallback = generateReportSubscriptionsFallback();
-        writeReportSubscriptionCache(fallback);
-        return { data: fallback.slice(0, limit) };
-      }
-
-      const { data, error } = await supabase
-        .from('gov_report_subscriptions')
-        .select('id, name, cadence, audience, status, last_run_at')
-        .order('created_at', { ascending: true })
-        .limit(limit);
-
-      if (error) {
-        return { error: error.message };
-      }
-
-      return {
-        data: (data ?? []).map((row) => ({
+    return {
+      data: (data ?? []).map((row) => {
+        const catalogCity = CITY_CATALOG_BY_ID[row.city_id];
+        return {
           id: row.id,
-          name: row.name,
-          cadence: row.cadence,
-          audience: row.audience,
+          cityId: row.city_id,
+          cityName: row.metadata?.city_name ?? (catalogCity ? `${catalogCity.name}, ${catalogCity.country}` : row.city_id),
+          window: row.window,
+          title: row.title,
+          summary: row.summary,
           status: row.status,
-          lastRunAt: row.last_run_at,
-        })),
-      };
-    },
-    generateReportSubscriptionsFallback().slice(0, limit)
-  );
+          impactScore: typeof row.impact_score === 'number' ? Number(row.impact_score) : null,
+          confidence: typeof row.confidence === 'number' ? Number(row.confidence) : null,
+          effectiveFrom: row.effective_from,
+          effectiveTo: row.effective_to,
+          metadata: row.metadata ?? {},
+        };
+      }),
+    };
+  },
+  generatePolicyInsightsFallback({ cityId, window, limit })
+);
 
-  export const fetchReportDispatchLog = async ({ limit = 20 } = {}) => withFallback(
-    async () => {
-      if (!hasSupabaseCredentials) {
-        return { data: generateReportDispatchFallback().slice(0, limit) };
+export const fetchReportSubscriptions = async ({ limit = 10 } = {}) => withFallback(
+  async () => {
+    if (!hasSupabaseCredentials) {
+      const cached = readReportSubscriptionCache();
+      if (cached.length) {
+        return { data: cached.slice(0, limit) };
       }
+      const fallback = generateReportSubscriptionsFallback();
+      writeReportSubscriptionCache(fallback);
+      return { data: fallback.slice(0, limit) };
+    }
 
-      const { data, error } = await supabase
-        .from('gov_report_dispatch_log')
-        .select('id, subscription_id, status, created_at, delivered_at, error_message, audience, summary')
-        .order('created_at', { ascending: false })
-        .limit(limit);
+    const { data, error } = await supabase
+      .from('gov_report_subscriptions')
+      .select('id, name, cadence, audience, delivery_channel, status, last_run_at, metadata, created_by, created_at')
+      .order('created_at', { ascending: true })
+      .limit(limit);
 
-      if (error) {
-        return { error: error.message };
-      }
+    if (error) {
+      return { error: error.message };
+    }
 
-      return {
-        data: (data ?? []).map((row) => ({
-          id: row.id,
-          subscriptionId: row.subscription_id,
-          status: row.status,
-          createdAt: row.created_at,
-          deliveredAt: row.delivered_at,
-          errorMessage: row.error_message,
-          audience: row.audience,
-          summary: row.summary ?? {},
-        })),
-      };
-    },
-    generateReportDispatchFallback().slice(0, limit)
-  );
+    return {
+      data: (data ?? []).map((row) => normalizeReportSubscription(row)),
+    };
+  },
+  generateReportSubscriptionsFallback().slice(0, limit)
+);
+
+export const fetchReportDispatchLog = async ({ limit = 20 } = {}) => withFallback(
+  async () => {
+    if (!hasSupabaseCredentials) {
+      return { data: generateReportDispatchFallback().slice(0, limit) };
+    }
+
+    const { data, error } = await supabase
+      .from('gov_report_dispatch_log')
+      .select('id, subscription_id, status, created_at, delivered_at, error_message, audience, summary')
+      .order('created_at', { ascending: false })
+      .limit(limit);
+
+    if (error) {
+      return { error: error.message };
+    }
+
+    return {
+      data: (data ?? []).map((row) => normalizeDispatchLog(row)),
+    };
+  },
+  generateReportDispatchFallback().slice(0, limit)
+);
 
 export const createReportSubscription = async ({
   name,
   cadence,
   audience,
-  deliveryChannel,
+  deliveryChannel = 'email',
   status = 'queued',
+  createdBy,
+  metadata = {},
 }) => {
   const payload = {
     id: (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function')
@@ -618,8 +692,10 @@ export const createReportSubscription = async ({
     audience,
     status,
     deliveryChannel,
+    metadata,
     lastRunAt: null,
-    createdAt: new Date().toISOString(),
+    createdAt: nowIso(),
+    createdBy: createdBy ?? null,
   };
 
   if (!hasSupabaseCredentials) {
@@ -637,8 +713,10 @@ export const createReportSubscription = async ({
       audience,
       status,
       delivery_channel: deliveryChannel,
+      metadata,
+      created_by: createdBy ?? null,
     })
-    .select('id, name, cadence, audience, status, last_run_at')
+    .select('id, name, cadence, audience, delivery_channel, status, last_run_at, metadata, created_by, created_at')
     .single();
 
   if (error) {
@@ -646,14 +724,7 @@ export const createReportSubscription = async ({
   }
 
   return {
-    data: {
-      id: data.id,
-      name: data.name,
-      cadence: data.cadence,
-      audience: data.audience,
-      status: data.status,
-      lastRunAt: data.last_run_at,
-    },
+    data: normalizeReportSubscription(data),
     error: null,
   };
 };
@@ -666,14 +737,16 @@ export const fetchIncidents = async () => withFallback(
 
     const { data, error } = await supabase
       .from(GOV_INCIDENTS_TABLE)
-      .select('*')
+      .select('id, title, severity, summary, status, tags, assigned_to, created_at, updated_at, created_by')
       .order('created_at', { ascending: false });
 
     if (error) {
       return { error: error.message };
     }
 
-    return { data };
+    return {
+      data: (data ?? []).map((row) => normalizeIncidentRecord(row)),
+    };
   },
   readIncidentCache()
 );
@@ -711,16 +784,15 @@ export const fetchIncidentActivity = async ({ incidentId, limit = 200 } = {}) =>
 );
 
 export const createIncident = async (incident) => {
+  const normalized = normalizeIncidentRecord({
+    ...incident,
+    createdBy: incident.createdBy ?? null,
+    createdAt: incident.createdAt ?? nowIso(),
+    updatedAt: incident.updatedAt ?? nowIso(),
+  });
+
   const payload = {
-    id: incident.id,
-    title: incident.title,
-    severity: incident.severity,
-    summary: incident.summary,
-    status: incident.status,
-    tags: incident.tags,
-    assignedTo: incident.assignedTo,
-    createdAt: incident.createdAt,
-    updatedAt: incident.updatedAt,
+    ...normalized,
   };
 
   if (!hasSupabaseCredentials) {
@@ -730,39 +802,56 @@ export const createIncident = async (incident) => {
     return { data: payload };
   }
 
+  const createdAt = payload.createdAt ?? nowIso();
+  const updatedAt = payload.updatedAt ?? createdAt;
+
   const { data, error } = await supabase
     .from(GOV_INCIDENTS_TABLE)
     .insert({
-      id: incident.id,
-      title: incident.title,
-      severity: incident.severity,
-      summary: incident.summary,
-      status: incident.status,
-      tags: incident.tags,
-      assigned_to: incident.assignedTo,
+      id: payload.id,
+      title: payload.title,
+      severity: payload.severity,
+      summary: payload.summary,
+      status: payload.status,
+      tags: payload.tags,
+      assigned_to: payload.assignedTo,
+      created_by: payload.createdBy,
+      created_at: createdAt,
+      updated_at: updatedAt,
     })
-    .select()
+    .select('id, title, severity, summary, status, tags, assigned_to, created_at, updated_at, created_by')
     .single();
 
-  return { data, error: error?.message ?? null };
+  if (error) {
+    return { data: null, error: error.message };
+  }
+
+  return { data: normalizeIncidentRecord(data), error: null };
 };
 
 export const updateIncidentStatus = async ({ id, status }) => {
   if (!hasSupabaseCredentials) {
     const incidents = readIncidentCache();
-    const next = incidents.map((item) => (item.id === id ? { ...item, status, updatedAt: new Date().toISOString() } : item));
+    const updatedAt = nowIso();
+    const next = incidents.map((item) => (item.id === id ? { ...item, status, updatedAt } : item));
     writeIncidentCache(next);
-    return { data: next.find((item) => item.id === id) };
+    const updated = next.find((item) => item.id === id);
+    return { data: updated ? normalizeIncidentRecord(updated) : null };
   }
 
+  const updatedAt = nowIso();
   const { data, error } = await supabase
     .from(GOV_INCIDENTS_TABLE)
-    .update({ status })
+    .update({ status, updated_at: updatedAt })
     .eq('id', id)
-    .select()
+    .select('id, title, severity, summary, status, tags, assigned_to, created_at, updated_at, created_by')
     .single();
 
-  return { data, error: error?.message ?? null };
+  if (error) {
+    return { data: null, error: error.message };
+  }
+
+  return { data: normalizeIncidentRecord(data), error: null };
 };
 
 export const deleteIncident = async (id) => {
@@ -787,14 +876,16 @@ export const fetchGovernmentNotes = async () => withFallback(
     }
     const { data, error } = await supabase
       .from(GOV_NOTES_TABLE)
-      .select('*')
+      .select('id, title, description, category, tags, created_at, updated_at, created_by')
       .order('created_at', { ascending: false });
 
     if (error) {
       return { error: error.message };
     }
 
-    return { data };
+    return {
+      data: (data ?? []).map((row) => normalizeNoteRecord(row)),
+    };
   },
   []
 );
@@ -807,7 +898,7 @@ export const fetchMeasurementUploads = async () => withFallback(
 
     const { data, error } = await supabase
       .from('gov_measurement_uploads')
-      .select('id, filename, status, total_rows, accepted_rows, rejected_rows, summary, created_at')
+      .select('id, filename, status, total_rows, accepted_rows, rejected_rows, summary, created_at, created_by')
       .order('created_at', { ascending: false });
 
     if (error) {
@@ -815,16 +906,7 @@ export const fetchMeasurementUploads = async () => withFallback(
     }
 
     return {
-      data: data.map((row) => ({
-        id: row.id,
-        filename: row.filename,
-        status: row.status,
-        totalRows: row.total_rows,
-        acceptedRows: row.accepted_rows,
-        rejectedRows: row.rejected_rows,
-        summary: row.summary,
-        createdAt: row.created_at,
-      })),
+      data: (data ?? []).map((row) => normalizeUploadRecord(row)),
     };
   },
   readUploadCache()
@@ -836,6 +918,7 @@ export const recordMeasurementUpload = async ({
   acceptedRows,
   rejectedRows,
   summary,
+  createdBy,
 }) => {
   const payload = {
     id: (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function')
@@ -847,7 +930,8 @@ export const recordMeasurementUpload = async ({
     acceptedRows,
     rejectedRows,
     summary,
-    createdAt: new Date().toISOString(),
+    createdAt: nowIso(),
+    createdBy: createdBy ?? null,
   };
 
   if (!hasSupabaseCredentials) {
@@ -865,26 +949,16 @@ export const recordMeasurementUpload = async ({
       accepted_rows: acceptedRows,
       rejected_rows: rejectedRows,
       summary,
+      created_by: createdBy ?? null,
     })
-    .select('id, filename, status, total_rows, accepted_rows, rejected_rows, summary, created_at')
+    .select('id, filename, status, total_rows, accepted_rows, rejected_rows, summary, created_at, created_by')
     .single();
 
   if (error) {
     return { error: error.message, data: payload };
   }
 
-  const mapped = {
-    id: data.id,
-    filename: data.filename,
-    status: data.status,
-    totalRows: data.total_rows,
-    acceptedRows: data.accepted_rows,
-    rejectedRows: data.rejected_rows,
-    summary: data.summary,
-    createdAt: data.created_at,
-  };
-
-  return { data: mapped };
+  return { data: normalizeUploadRecord(data) };
 };
 
 export const buildCsv = (rows) => {
@@ -907,7 +981,44 @@ export const triggerDownload = (filename, content, type = 'text/plain') => {
   URL.revokeObjectURL(url);
 };
 
-export const subscribeToLiveMetrics = ({ interval = 30000, onTick }) => {
+export const subscribeToLiveMetrics = ({ interval = 30000, onTick } = {}) => {
+  if (hasSupabaseCredentials && typeof supabase?.channel === 'function') {
+    let active = true;
+
+    const emitLatest = async () => {
+      const { data } = await fetchLiveMetrics();
+      if (active && Array.isArray(data)) {
+        onTick?.(data);
+      }
+    };
+
+    const channel = supabase
+      .channel('gov-live-metrics-feed')
+      .on('postgres_changes', { event: '*', schema: 'public', table: GOV_LIVE_METRICS_TABLE }, emitLatest)
+      .subscribe(async (status) => {
+        if (status === 'SUBSCRIBED') {
+          await emitLatest();
+        }
+      });
+
+    const refreshHandle = setInterval(() => {
+      emitLatest();
+    }, Math.max(interval, 15000));
+
+    return () => {
+      active = false;
+      clearInterval(refreshHandle);
+      if (typeof supabase.removeChannel === 'function') {
+        supabase.removeChannel(channel);
+      } else {
+        channel?.unsubscribe?.();
+      }
+    };
+  }
+
+  const bootstrap = generateLiveMetricsFallback(30);
+  onTick?.(bootstrap);
+
   const handle = setInterval(() => {
     const data = generateLiveMetricsFallback(30);
     onTick?.(data);

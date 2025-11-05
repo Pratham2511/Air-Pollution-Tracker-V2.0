@@ -529,7 +529,10 @@ export const useGovernmentDashboardData = () => {
 
   const recordUploadMutation = useMutation({
     mutationFn: async (payload) => {
-      const { data, error } = await recordMeasurementUpload(payload);
+      const { data, error } = await recordMeasurementUpload({
+        ...payload,
+        createdBy: user?.id ?? null,
+      });
       if (error) {
         const err = new Error(error);
         if (data) {
@@ -617,7 +620,10 @@ export const useGovernmentDashboardData = () => {
 
   const createReportSubscriptionMutation = useMutation({
     mutationFn: async (payload) => {
-      const { data, error } = await createReportSubscription(payload);
+      const { data, error } = await createReportSubscription({
+        ...payload,
+        createdBy: user?.id ?? null,
+      });
       if (error) {
         throw new Error(error);
       }
@@ -663,6 +669,7 @@ export const useGovernmentDashboardData = () => {
       assignedTo: payload.assignedTo ?? 'Operations',
       createdAt: now,
       updatedAt: now,
+      createdBy: user?.id ?? null,
     };
 
     await createIncidentMutation.mutateAsync(incident);

@@ -121,7 +121,9 @@ create table if not exists public.gov_notes (
   title text not null,
   description text,
   category text,
+  tags text[] default array[]::text[],
   created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
   created_by uuid references auth.users(id) on delete set null
 );
 
@@ -149,8 +151,10 @@ create table if not exists public.gov_report_subscriptions (
   name text not null,
   cadence text not null,
   audience text,
+  delivery_channel text default 'email',
   status text not null default 'active',
   last_run_at timestamptz,
+  metadata jsonb default '{}'::jsonb,
   created_by uuid references auth.users(id) on delete set null,
   created_at timestamptz not null default now()
 );
@@ -172,6 +176,25 @@ create index if not exists gov_report_dispatch_log_status_idx
 
 create index if not exists gov_report_dispatch_log_created_at_idx
   on public.gov_report_dispatch_log (created_at desc);
+
+-- helper to maintain updated_at columns on stateful tables
+create or replace function public.touch_updated_at()
+returns trigger as $$
+begin
+  new.updated_at = now();
+  return new;
+end;
+$$ language plpgsql;
+
+drop trigger if exists gov_notes_touch_updated_at on public.gov_notes;
+create trigger gov_notes_touch_updated_at
+  before update on public.gov_notes
+  for each row execute function public.touch_updated_at();
+
+drop trigger if exists gov_incidents_touch_updated_at on public.gov_incidents;
+create trigger gov_incidents_touch_updated_at
+  before update on public.gov_incidents
+  for each row execute function public.touch_updated_at();
 
 -- Row Level Security ------------------------------------------
 
@@ -320,6 +343,13 @@ create policy if not exists incident_activity_insert
 create policy if not exists incident_activity_update
   on public.incident_activity for update
   using (auth.role() = 'service_role');
+
+-- ensure new columns exist when upgrading an existing environment
+alter table public.gov_report_subscriptions add column if not exists delivery_channel text default 'email';
+alter table public.gov_report_subscriptions add column if not exists metadata jsonb default '{}'::jsonb;
+
+alter table public.gov_notes add column if not exists tags text[] default array[]::text[];
+alter table public.gov_notes add column if not exists updated_at timestamptz not null default now();
 
 -- helper view mapping incidents to audit summary
 create or replace view public.gov_incident_summary as

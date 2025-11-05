@@ -85,3 +85,37 @@ values (
 - The Edge Function can be emulated locally with `supabase functions serve --env-file ./supabase/.env`. Provide a `SERVICE_ROLE_TOKEN` in your env file to bypass the auth guard.
 - Trigger `aq_ingestion` manually with the curl command above or through the Supabase CLI (`supabase functions invoke aq_ingestion --no-verify-jwt`).
 - The React application still hydrates from the local cache first, so you can validate UI freshness by clearing `localStorage` and confirming that dashboard measurements reload from Supabase after the function executes.
+
+## Verification Checklist
+
+Run these steps whenever you need to prove the ingestion pipeline is healthy (e.g., before closing Phase 6 or after infrastructure changes).
+
+1. **Start the function locally**
+  ```bash
+  supabase functions serve aq_ingestion --env-file ./supabase/.env
+  ```
+2. **Invoke the function with the shared secret**
+  ```bash
+  curl -i \
+    -H "x-service-role-token: ${SERVICE_ROLE_TOKEN}" \
+    http://localhost:54321/functions/v1/aq_ingestion
+  ```
+3. **Confirm Supabase tables were updated** (SQL snippets runnable via Supabase SQL editor):
+  ```sql
+  select city_id, aqi, recorded_at
+  from aq_measurements
+  order by recorded_at desc
+  limit 5;
+
+  select status, started_at, finished_at, error_message
+  from aq_ingestion_audit
+  order by finished_at desc
+  limit 5;
+  ```
+4. **Smoke-test the client**
+  - Clear `localStorage` in the browser devtools (`localStorage.clear()` in the console).
+  - Reload the dashboard and ensure the latest AQI values reflect the rows inserted above.
+5. **Triage failures**
+  - `curl` non-200 responses → check the function logs (`supabase functions logs aq_ingestion`).
+  - Empty `aq_measurements` rows → inspect OpenAQ quota (429 responses) or API key configuration.
+  - Missing audit entries → verify the service role key in `.env` matches Supabase project settings.
