@@ -346,10 +346,11 @@ export const MapViewPanel = ({ cities, isLoading, onSelectCity, onToggleTracking
             map.setView(center, zoom);
           }
         }}
-        whenReady={(map) => {
+        whenReady={({ target }) => {
+          const readyMap = target;
           persistedViewRef.current = {
-            center: map.getCenter(),
-            zoom: map.getZoom(),
+            center: readyMap.getCenter(),
+            zoom: readyMap.getZoom(),
           };
         }}
       >
