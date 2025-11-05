@@ -21,7 +21,18 @@ const badgeClassByLevel = {
   'aqi-hazardous': 'bg-aqi-hazardous text-white',
 };
 
-export const TrackingPanel = ({ trackedCities, availableCities, onAdd, onRemove, onReorder, onSelect, onOpenAnalysis, isLoading }) => {
+export const TrackingPanel = ({
+  trackedCities,
+  availableCities,
+  onAdd,
+  onRemove,
+  onReorder,
+  onSelect,
+  onOpenAnalysis,
+  onOpenOverview,
+  canOpenOverview,
+  isLoading,
+}) => {
   const [selectedCityId, setSelectedCityId] = useState(availableCities[0]?.id ?? '');
   const [searchQuery, setSearchQuery] = useState('');
 
@@ -58,11 +69,21 @@ export const TrackingPanel = ({ trackedCities, availableCities, onAdd, onRemove,
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-        <div>
+        <div className="space-y-3">
           <h2 className="text-xl font-semibold text-slate-900">Tracked Cities</h2>
           <p className="text-sm text-slate-500">
             Manage your personalized watchlist. Preferences sync to your account when you&apos;re signed in and persist locally offline.
           </p>
+          {onOpenOverview && (
+            <button
+              type="button"
+              onClick={onOpenOverview}
+              disabled={!canOpenOverview}
+              className="inline-flex items-center justify-center rounded-full border border-slate-200 bg-white/90 px-4 py-2 text-sm font-semibold text-user-primary shadow-sm transition hover:border-user-primary/60 hover:bg-white disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              Tracked city analysis
+            </button>
+          )}
         </div>
 
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
@@ -265,11 +286,15 @@ TrackingPanel.propTypes = {
   onReorder: PropTypes.func.isRequired,
   onSelect: PropTypes.func,
   onOpenAnalysis: PropTypes.func,
+  onOpenOverview: PropTypes.func,
+  canOpenOverview: PropTypes.bool,
   isLoading: PropTypes.bool,
 };
 
 TrackingPanel.defaultProps = {
   onSelect: undefined,
   onOpenAnalysis: undefined,
+  onOpenOverview: undefined,
+  canOpenOverview: false,
   isLoading: false,
 };

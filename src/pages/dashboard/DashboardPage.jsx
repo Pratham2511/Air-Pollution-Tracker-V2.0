@@ -108,6 +108,8 @@ export const DashboardPage = () => {
             isLoading={isLoading}
             onSelect={setSelectedCityId}
             onOpenAnalysis={handleOpenAnalysis}
+            onOpenOverview={handleOpenOverview}
+            canOpenOverview={canOpenOverview}
           />
         );
       case 'insights':
@@ -129,7 +131,7 @@ export const DashboardPage = () => {
           />
         );
     }
-  }, [activeTab, availableCities, handleAddCity, handleOpenAnalysis, handleRemoveCity, insights, isLoading, mapCities, reorderCity, trackedCities]);
+  }, [activeTab, availableCities, canOpenOverview, handleAddCity, handleOpenAnalysis, handleOpenOverview, handleRemoveCity, insights, isLoading, mapCities, reorderCity, trackedCities]);
 
   const selectedCity = useMemo(() => {
     if (isLoading || !selectedCityId) {
@@ -196,16 +198,6 @@ export const DashboardPage = () => {
               </div>
               <div className="flex flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:justify-end">
                 <DashboardTabs tabs={DASHBOARD_TABS} activeTab={activeTab} onTabChange={setActiveTab} panelIdPrefix="dashboard-panel" />
-                <button
-                  type="button"
-                  onClick={handleOpenOverview}
-                  disabled={!canOpenOverview}
-                  className="inline-flex items-center justify-center rounded-full border border-slate-900/10 bg-white/90 px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-60"
-                  aria-disabled={!canOpenOverview}
-                  title={canOpenOverview ? 'Open analysis for your tracked cities' : 'Track at least two cities to unlock the overview'}
-                >
-                  Tracked city analysis
-                </button>
               </div>
             </div>
           </motion.section>
