@@ -120,16 +120,8 @@ export const ProtectedRoute = ({ children, allowedRoles = [] }) => {
     return <Navigate to="/" replace />;
   }
 
-  // Show demo banner if in demo mode
   if (accessOutcome.isDemo) {
-    return (
-      <div>
-        <div className="bg-gradient-to-r from-blue-500 to-purple-600 text-white text-center py-2 px-4 text-sm">
-          🔬 Demo Mode: Running with local data - No Supabase configuration required
-        </div>
-        {children}
-      </div>
-    );
+    return children;
   }
 
   // Show bypass banner when dev auth bypass is enabled
