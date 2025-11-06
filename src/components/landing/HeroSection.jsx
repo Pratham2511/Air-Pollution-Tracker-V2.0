@@ -64,12 +64,6 @@ export const HeroSection = () => (
               Government Command Center
             </Link>
           </div>
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mt-4">
-            <p className="text-blue-800 text-sm">
-              🔬 <strong>Demo Mode Active:</strong> Both dashboards are accessible without authentication. 
-              Click the buttons above to explore the Citizen Dashboard and Government Portal with sample data.
-            </p>
-          </div>
           <div className="grid sm:grid-cols-3 gap-4">
             {stats.map((stat) => (
               <StatCard
