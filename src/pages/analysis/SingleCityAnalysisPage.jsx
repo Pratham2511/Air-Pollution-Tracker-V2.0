@@ -580,64 +580,77 @@ export const SingleCityAnalysisPage = () => {
               )}
             </div>
           </div>
-          <div className="flex min-w-[14rem] flex-col gap-4">
-            <label className="flex flex-col gap-2">
-              <span className="text-xs uppercase tracking-[0.3em] text-slate-500">City</span>
-              <select
-                value={resolvedCityId}
-                onChange={handleCityChange}
-                disabled={!trackedCityOptions.length}
-                className="rounded-xl border border-slate-200 bg-white/80 px-4 py-2 text-sm text-slate-700 shadow-sm focus:border-user-primary focus:outline-none focus:ring-2 focus:ring-user-primary/20 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                {!trackedCityOptions.length && (
-                  <option value="" disabled>
-                    Add tracked cities to compare
-                  </option>
-                )}
-                {trackedCityOptions.map((catalogCity) => (
-                  <option key={catalogCity.id} value={catalogCity.id}>
-                    {catalogCity.name}, {catalogCity.state}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="flex flex-col gap-2">
-              <span className="text-xs uppercase tracking-[0.3em] text-slate-500">Window</span>
-              <select
-                value={windowKey}
-                onChange={(event) => actions.setWindow(event.target.value)}
-                className="rounded-xl border border-slate-200 bg-white/80 px-4 py-2 text-sm text-slate-700 shadow-sm focus:border-user-primary focus:outline-none focus:ring-2 focus:ring-user-primary/20"
-              >
-                {availableWindows.map((windowOption) => (
-                  <option key={windowOption} value={windowOption}>
-                    {windowOption}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <button
-              type="button"
-              onClick={actions.refresh}
-              className="rounded-xl border border-user-primary/20 bg-user-primary/10 px-4 py-2 text-sm font-semibold text-user-primary transition hover:bg-user-primary/15"
-            >
-              Refresh Data
-            </button>
-            <Link
-              to={allowMultiCityOverview ? '/analysis/overview' : '#'}
-              onClick={(event) => {
-                if (!allowMultiCityOverview) {
-                  event.preventDefault();
-                }
-              }}
-              aria-disabled={!allowMultiCityOverview}
-              className={`rounded-xl border px-4 py-2 text-sm font-semibold transition ${
-                allowMultiCityOverview
-                  ? 'border-slate-200 text-user-primary hover:border-user-primary/60 hover:text-user-primary'
-                  : 'cursor-not-allowed border-slate-200 text-slate-400'
-              }`}
-            >
-              View Multi-City Overview
-            </Link>
+          <div className="w-full max-w-sm">
+            <div className="rounded-3xl border border-slate-200/70 bg-white/85 p-5 shadow-md backdrop-blur">
+              <div className="space-y-4">
+                <label className="flex flex-col gap-2">
+                  <span className="text-xs uppercase tracking-[0.3em] text-slate-500">City</span>
+                  <select
+                    value={resolvedCityId}
+                    onChange={handleCityChange}
+                    disabled={!trackedCityOptions.length}
+                    className="rounded-xl border border-slate-200 bg-white/80 px-4 py-2 text-sm text-slate-700 shadow-sm focus:border-user-primary focus:outline-none focus:ring-2 focus:ring-user-primary/20 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {!trackedCityOptions.length && (
+                      <option value="" disabled>
+                        Add tracked cities to compare
+                      </option>
+                    )}
+                    {trackedCityOptions.map((catalogCity) => (
+                      <option key={catalogCity.id} value={catalogCity.id}>
+                        {catalogCity.name}, {catalogCity.state}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="flex flex-col gap-2">
+                  <span className="text-xs uppercase tracking-[0.3em] text-slate-500">Window</span>
+                  <select
+                    value={windowKey}
+                    onChange={(event) => actions.setWindow(event.target.value)}
+                    className="rounded-xl border border-slate-200 bg-white/80 px-4 py-2 text-sm text-slate-700 shadow-sm focus:border-user-primary focus:outline-none focus:ring-2 focus:ring-user-primary/20"
+                  >
+                    {availableWindows.map((windowOption) => (
+                      <option key={windowOption} value={windowOption}>
+                        {windowOption}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <button
+                  type="button"
+                  onClick={actions.refresh}
+                  disabled={status === 'loading'}
+                  className="rounded-xl border border-user-primary/20 bg-user-primary/10 px-4 py-2 text-sm font-semibold text-user-primary transition hover:bg-user-primary/15 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {status === 'loading' ? 'Refreshing…' : 'Refresh Data'}
+                </button>
+                <Link
+                  to={allowMultiCityOverview ? '/analysis/overview' : '#'}
+                  onClick={(event) => {
+                    if (!allowMultiCityOverview) {
+                      event.preventDefault();
+                    }
+                  }}
+                  aria-disabled={!allowMultiCityOverview}
+                  tabIndex={allowMultiCityOverview ? 0 : -1}
+                  className={`rounded-xl border px-4 py-2 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-user-primary/20 ${
+                    allowMultiCityOverview
+                      ? 'border-slate-200 text-user-primary hover:border-user-primary/60 hover:text-user-primary'
+                      : 'pointer-events-none border-slate-200 text-slate-400'
+                  }`}
+                >
+                  View Multi-City Overview
+                </Link>
+              </div>
+              <div className="mt-4 rounded-2xl border border-slate-200 bg-white/70 px-4 py-2 text-xs text-slate-500">
+                {status === 'loading'
+                  ? 'Refreshing insights…'
+                  : lastFetched
+                    ? `Synced ${new Date(lastFetched).toLocaleTimeString()}`
+                    : 'Using cached insights snapshot.'}
+              </div>
+            </div>
           </div>
         </header>
 

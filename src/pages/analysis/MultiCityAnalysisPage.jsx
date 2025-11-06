@@ -22,7 +22,8 @@ const SelectedCityChip = ({ cityId, cityName, onRemove }) => (
   <button
     type="button"
     onClick={() => onRemove(cityId)}
-    className="inline-flex items-center gap-2 rounded-full border border-user-primary/20 bg-user-primary/10 px-3 py-1 text-xs font-semibold text-user-primary transition hover:bg-user-primary/15"
+    className="inline-flex items-center gap-2 rounded-full border border-user-primary/20 bg-user-primary/10 px-3 py-1 text-xs font-semibold text-user-primary transition hover:bg-user-primary/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-user-primary/30"
+    aria-label={`Remove ${cityName} from comparison`}
   >
     {cityName}
     <span className="text-user-primary">✕</span>
@@ -73,17 +74,23 @@ const LeaderboardCard = ({ title, entries }) => (
   <div className="rounded-3xl border border-slate-200 bg-white/85 p-6 shadow-md backdrop-blur">
     <h3 className="text-lg font-semibold text-slate-900">{title}</h3>
     <div className="mt-4 flex flex-col gap-3 text-sm text-slate-600">
-      {entries.map((entry) => (
-        <div key={entry.cityId} className="flex items-center justify-between rounded-2xl border border-slate-200 bg-white/90 px-4 py-3 shadow-sm">
-          <div>
-            <p className="font-semibold text-slate-900">{entry.cityName}</p>
-            <p className="text-xs text-slate-500">Δ AQI {entry.delta}</p>
+      {entries.length ? (
+        entries.map((entry) => (
+          <div key={entry.cityId} className="flex items-center justify-between rounded-2xl border border-slate-200 bg-white/90 px-4 py-3 shadow-sm">
+            <div>
+              <p className="font-semibold text-slate-900">{entry.cityName}</p>
+              <p className="text-xs text-slate-500">Δ AQI {entry.delta}</p>
+            </div>
+            <span className={`text-base font-semibold ${entry.delta >= 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
+              {entry.currentAqi}
+            </span>
           </div>
-          <span className={`text-base font-semibold ${entry.delta >= 0 ? 'text-rose-600' : 'text-emerald-600'}`}>
-            {entry.currentAqi}
-          </span>
-        </div>
-      ))}
+        ))
+      ) : (
+        <p className="rounded-2xl border border-slate-200 bg-white/90 px-4 py-3 text-xs text-slate-500 shadow-sm">
+          No leaderboard data available for the selected window.
+        </p>
+      )}
     </div>
   </div>
 );
@@ -97,7 +104,11 @@ LeaderboardCard.propTypes = {
       delta: PropTypes.number.isRequired,
       currentAqi: PropTypes.number.isRequired,
     }),
-  ).isRequired,
+  ),
+};
+
+LeaderboardCard.defaultProps = {
+  entries: [],
 };
 
 const PollutantMatrixTable = ({ matrix }) => (
@@ -108,33 +119,39 @@ const PollutantMatrixTable = ({ matrix }) => (
         <p className="text-sm text-slate-600">Pollutant load across selected cities</p>
       </div>
     </div>
-    <div className="mt-5 overflow-auto">
-      <table className="w-full min-w-[32rem] border-collapse text-left text-sm text-slate-700">
-        <thead className="bg-white/70 text-xs uppercase tracking-[0.3em] text-slate-500">
-          <tr>
-            <th className="px-4 py-3">City</th>
-            <th className="px-4 py-3">PM2.5</th>
-            <th className="px-4 py-3">PM10</th>
-            <th className="px-4 py-3">NO₂</th>
-            <th className="px-4 py-3">SO₂</th>
-            <th className="px-4 py-3">CO</th>
-            <th className="px-4 py-3">O₃</th>
-          </tr>
-        </thead>
-        <tbody>
-          {matrix.map((row) => (
-            <tr key={row.cityId} className="border-t border-slate-200">
-              <td className="px-4 py-3 font-semibold text-slate-900">{row.cityName}</td>
-              {row.pollutants.map((pollutant) => (
-                <td key={pollutant.pollutant} className="px-4 py-3 text-slate-600">
-                  {pollutant.value}
-                </td>
-              ))}
+    {matrix.length ? (
+      <div className="mt-5 overflow-auto">
+        <table className="w-full min-w-[32rem] border-collapse text-left text-sm text-slate-700">
+          <thead className="bg-white/70 text-xs uppercase tracking-[0.3em] text-slate-500">
+            <tr>
+              <th className="px-4 py-3">City</th>
+              <th className="px-4 py-3">PM2.5</th>
+              <th className="px-4 py-3">PM10</th>
+              <th className="px-4 py-3">NO₂</th>
+              <th className="px-4 py-3">SO₂</th>
+              <th className="px-4 py-3">CO</th>
+              <th className="px-4 py-3">O₃</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
+          </thead>
+          <tbody>
+            {matrix.map((row) => (
+              <tr key={row.cityId} className="border-t border-slate-200">
+                <td className="px-4 py-3 font-semibold text-slate-900">{row.cityName}</td>
+                {row.pollutants.map((pollutant) => (
+                  <td key={pollutant.pollutant} className="px-4 py-3 text-slate-600">
+                    {pollutant.value}
+                  </td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    ) : (
+      <div className="mt-5 rounded-2xl border border-slate-200 bg-white/90 px-4 py-6 text-xs text-slate-500 shadow-sm">
+        Add more tracked cities or refresh your selection to compare pollutant loads.
+      </div>
+    )}
   </div>
 );
 
@@ -150,7 +167,11 @@ PollutantMatrixTable.propTypes = {
         }),
       ).isRequired,
     }),
-  ).isRequired,
+  ),
+};
+
+PollutantMatrixTable.defaultProps = {
+  matrix: [],
 };
 
 const DominantPollutantList = ({ dominantPollutants }) => (
@@ -163,17 +184,23 @@ const DominantPollutantList = ({ dominantPollutants }) => (
       size="compact"
     />
     <div className="mt-5 grid gap-3">
-      {dominantPollutants.map((entry) => (
-        <div key={entry.cityId} className="flex items-center justify-between rounded-2xl border border-slate-200 bg-white/90 px-4 py-3 shadow-sm">
-          <div>
-            <p className="text-sm font-semibold text-slate-900">{entry.cityName}</p>
-            <p className="text-xs text-slate-500">{entry.level.label}</p>
+      {dominantPollutants.length ? (
+        dominantPollutants.map((entry) => (
+          <div key={entry.cityId} className="flex items-center justify-between rounded-2xl border border-slate-200 bg-white/90 px-4 py-3 shadow-sm">
+            <div>
+              <p className="text-sm font-semibold text-slate-900">{entry.cityName}</p>
+              <p className="text-xs text-slate-500">{entry.level.label}</p>
+            </div>
+            <span className="rounded-full border border-user-primary/20 bg-user-primary/10 px-3 py-1 text-xs font-semibold text-user-primary">
+              {entry.pollutant}
+            </span>
           </div>
-          <span className="rounded-full border border-user-primary/20 bg-user-primary/10 px-3 py-1 text-xs font-semibold text-user-primary">
-            {entry.pollutant}
-          </span>
-        </div>
-      ))}
+        ))
+      ) : (
+        <p className="rounded-2xl border border-slate-200 bg-white/90 px-4 py-3 text-xs text-slate-500 shadow-sm">
+          Dominant pollutant insights will appear once data is available for your selection.
+        </p>
+      )}
     </div>
   </div>
 );
@@ -186,7 +213,11 @@ DominantPollutantList.propTypes = {
       pollutant: PropTypes.string.isRequired,
       level: PropTypes.object.isRequired,
     }),
-  ).isRequired,
+  ),
+};
+
+DominantPollutantList.defaultProps = {
+  dominantPollutants: [],
 };
 
 const TemporalPatternChart = ({ title, data, dataKey }) => (
@@ -380,52 +411,64 @@ export const MultiCityAnalysisPage = () => {
               )}
             </div>
           </div>
-          <div className="flex min-w-[16rem] flex-col gap-4">
-            <label className="flex flex-col gap-2">
-              <span className="text-xs uppercase tracking-[0.3em] text-slate-500">Add city</span>
-              <select
-                value=""
-                onChange={addCity}
-                disabled={disableAddCity}
-                className="rounded-xl border border-slate-200 bg-white/80 px-4 py-2 text-sm text-slate-700 shadow-sm focus:border-user-primary focus:outline-none focus:ring-2 focus:ring-user-primary/20 disabled:cursor-not-allowed disabled:opacity-50"
-              >
-                <option value="" disabled>
-                  Select city
-                </option>
-                {trackedAvailableCities.map((city) => (
-                  <option key={city.id} value={city.id}>
-                    {city.name}, {city.state}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="flex flex-col gap-2">
-              <span className="text-xs uppercase tracking-[0.3em] text-slate-500">Window</span>
-              <select
-                value={windowKey}
-                onChange={(event) => actions.setWindow(event.target.value)}
-                className="rounded-xl border border-slate-200 bg-white/80 px-4 py-2 text-sm text-slate-700 shadow-sm focus:border-user-primary focus:outline-none focus:ring-2 focus:ring-user-primary/20"
-              >
-                {availableWindows.map((windowOption) => (
-                  <option key={windowOption} value={windowOption}>
-                    {windowOption}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <button
-              type="button"
-              onClick={actions.refresh}
-              className="rounded-xl border border-user-primary/20 bg-user-primary/10 px-4 py-2 text-sm font-semibold text-user-primary transition hover:bg-user-primary/15"
-            >
-              Refresh Overview
-            </button>
-            <Link
-              to="/dashboard"
-              className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-user-primary transition hover:border-user-primary/60 hover:text-user-primary"
-            >
-              Back to Dashboard
-            </Link>
+          <div className="w-full max-w-sm">
+            <div className="rounded-3xl border border-slate-200/70 bg-white/85 p-5 shadow-md backdrop-blur">
+              <div className="space-y-4">
+                <label className="flex flex-col gap-2">
+                  <span className="text-xs uppercase tracking-[0.3em] text-slate-500">Add city</span>
+                  <select
+                    value=""
+                    onChange={addCity}
+                    disabled={disableAddCity}
+                    className="rounded-xl border border-slate-200 bg-white/80 px-4 py-2 text-sm text-slate-700 shadow-sm focus:border-user-primary focus:outline-none focus:ring-2 focus:ring-user-primary/20 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <option value="" disabled>
+                      Select city
+                    </option>
+                    {trackedAvailableCities.map((city) => (
+                      <option key={city.id} value={city.id}>
+                        {city.name}, {city.state}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="flex flex-col gap-2">
+                  <span className="text-xs uppercase tracking-[0.3em] text-slate-500">Window</span>
+                  <select
+                    value={windowKey}
+                    onChange={(event) => actions.setWindow(event.target.value)}
+                    className="rounded-xl border border-slate-200 bg-white/80 px-4 py-2 text-sm text-slate-700 shadow-sm focus:border-user-primary focus:outline-none focus:ring-2 focus:ring-user-primary/20"
+                  >
+                    {availableWindows.map((windowOption) => (
+                      <option key={windowOption} value={windowOption}>
+                        {windowOption}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <button
+                  type="button"
+                  onClick={actions.refresh}
+                  disabled={isLoading}
+                  className="rounded-xl border border-user-primary/20 bg-user-primary/10 px-4 py-2 text-sm font-semibold text-user-primary transition hover:bg-user-primary/15 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {isLoading ? 'Refreshing…' : 'Refresh Overview'}
+                </button>
+                <Link
+                  to="/dashboard"
+                  className="rounded-xl border border-slate-200 px-4 py-2 text-sm font-semibold text-user-primary transition hover:border-user-primary/60 hover:text-user-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-user-primary/20"
+                >
+                  Back to Dashboard
+                </Link>
+              </div>
+              <div className="mt-4 rounded-2xl border border-slate-200 bg-white/70 px-4 py-2 text-xs text-slate-500">
+                {isLoading
+                  ? 'Refreshing overview…'
+                  : lastFetched
+                    ? `Synced ${new Date(lastFetched).toLocaleTimeString()}`
+                    : 'Using cached overview snapshot.'}
+              </div>
+            </div>
           </div>
         </header>
 
@@ -435,19 +478,32 @@ export const MultiCityAnalysisPage = () => {
           </div>
         )}
 
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-xs uppercase tracking-[0.3em] text-slate-500">Selected cities</span>
-          {selectedCityIds.map((cityId) => {
-            const city = trackedCatalogMap.get(cityId) ?? CITY_CATALOG.find((c) => c.id === cityId);
-            return city ? (
-              <SelectedCityChip
-                key={city.id}
-                cityId={city.id}
-                cityName={`${city.name}, ${city.state}`}
-                onRemove={actions.toggleCity}
-              />
-            ) : null;
-          })}
+        <div className="rounded-3xl border border-slate-200/70 bg-white/85 p-4 shadow-sm backdrop-blur">
+          <div className="flex items-center justify-between gap-2">
+            <span className="text-xs uppercase tracking-[0.3em] text-slate-500">Selected cities</span>
+            <span className="text-xs text-slate-500">
+              {selectedCityIds.length ? `${selectedCityIds.length} active` : 'None selected'}
+            </span>
+          </div>
+          <div className="mt-3 flex flex-wrap gap-2">
+            {selectedCityIds.length ? (
+              selectedCityIds.map((cityId) => {
+                const city = trackedCatalogMap.get(cityId) ?? CITY_CATALOG.find((c) => c.id === cityId);
+                return city ? (
+                  <SelectedCityChip
+                    key={city.id}
+                    cityId={city.id}
+                    cityName={`${city.name}, ${city.state}`}
+                    onRemove={actions.toggleCity}
+                  />
+                ) : null;
+              })
+            ) : (
+              <span className="text-xs text-slate-500">
+                Add cities from your dashboard watchlist to populate this view.
+              </span>
+            )}
+          </div>
         </div>
 
         {status === 'error' && (

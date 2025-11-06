@@ -6,9 +6,12 @@ import { MapViewPanel } from '../../components/dashboard/MapViewPanel';
 import { TrackingPanel } from '../../components/dashboard/TrackingPanel';
 import { InsightsPanel } from '../../components/dashboard/InsightsPanel';
 import { CityDetailModal } from '../../components/dashboard/CityDetailModal';
+import { CitizenAccountMenu } from '../../components/dashboard/CitizenAccountMenu';
 import { usePersistentState } from '../../hooks/usePersistentState';
 import { useDashboardData } from '../../hooks/useDashboardData';
 import { useToast } from '../../components/common';
+import { useAuth } from '../../context/AuthContext';
+import { signOut } from '../../services/authService';
 
 const DASHBOARD_TABS = [
   { id: 'map', label: 'Map View' },
@@ -21,7 +24,9 @@ export const DashboardPage = () => {
   const { trackedCities, availableCities, mapCities, insights, isLoading, error, actions } = useDashboardData();
   const { addCity, removeCity, reorderCity } = actions;
   const [selectedCityId, setSelectedCityId] = useState(null);
+  const [isSigningOut, setIsSigningOut] = useState(false);
   const navigate = useNavigate();
+  const { user, profile, refreshProfile } = useAuth();
   const trackedCityMap = useMemo(
     () => new Map(trackedCities.map((city) => [city.id, city])),
     [trackedCities],
@@ -33,6 +38,49 @@ export const DashboardPage = () => {
   );
   const toast = useToast();
   const shownErrorsRef = useRef(new Set());
+
+  const handleSignOut = useCallback(async () => {
+    setIsSigningOut(true);
+    try {
+      const { error: signOutError } = await signOut();
+      if (signOutError) {
+        const normalized = signOutError?.toLowerCase?.() ?? signOutError;
+        const isDemoNotice = typeof normalized === 'string'
+          && (normalized.includes('credential') || normalized.includes('not configured'));
+        toast.addToast({
+          type: isDemoNotice ? 'info' : 'danger',
+          title: isDemoNotice ? 'Demo mode active' : 'Unable to sign out',
+          description: isDemoNotice
+            ? 'Sign-out is simulated because Supabase credentials are not configured.'
+            : signOutError,
+          duration: 5200,
+        });
+      } else {
+        toast.addToast({
+          type: 'success',
+          title: 'Signed out',
+          description: 'Your secure session has ended.',
+          duration: 3200,
+        });
+      }
+    } catch (error) {
+      toast.addToast({
+        type: 'danger',
+        title: 'Sign out failed',
+        description: error.message ?? 'Please try again.',
+      });
+    } finally {
+      try {
+        await refreshProfile();
+      } catch (refreshError) {
+        if (process.env.NODE_ENV !== 'production') {
+          // eslint-disable-next-line no-console
+          console.warn('[DashboardPage] refreshProfile after sign-out failed', refreshError);
+        }
+      }
+      setIsSigningOut(false);
+    }
+  }, [refreshProfile, toast]);
 
   const handleAddCity = useCallback(
     (cityId) => {
@@ -196,8 +244,18 @@ export const DashboardPage = () => {
                   Monitor 200+ cities, manage personal watchlists, and get proactive insights to protect your community from air quality risks.
                 </p>
               </div>
-              <div className="flex flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:justify-end">
-                <DashboardTabs tabs={DASHBOARD_TABS} activeTab={activeTab} onTabChange={setActiveTab} panelIdPrefix="dashboard-panel" />
+              <div className="flex flex-col items-stretch gap-3 sm:flex-row sm:items-center sm:justify-end sm:gap-4">
+                <div className="w-full sm:w-auto">
+                  <CitizenAccountMenu
+                    profile={profile}
+                    email={user?.email ?? '—'}
+                    onSignOut={handleSignOut}
+                    isSigningOut={isSigningOut}
+                  />
+                </div>
+                <div className="w-full sm:flex-1">
+                  <DashboardTabs tabs={DASHBOARD_TABS} activeTab={activeTab} onTabChange={setActiveTab} panelIdPrefix="dashboard-panel" />
+                </div>
               </div>
             </div>
           </motion.section>
